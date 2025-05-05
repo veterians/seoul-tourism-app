@@ -463,11 +463,6 @@ def process_dataframe(df, category, language="한국어"):
     
     return markers
 
-# 1. streamlit_app.py 파일에서 다음 함수를 찾으세요:
-def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=13, language="ko"):
-
-# 2. 이 함수를 다음 코드로 완전히 교체하세요:
-
 def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=13, language="ko"):
     """Google Maps HTML 생성"""
     if markers is None:
