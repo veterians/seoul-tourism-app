@@ -891,7 +891,7 @@ def show_login_page():
                     st.session_state.logged_in = True
                     st.session_state.username = username
                     change_page("menu")
-                    st.rerun()
+                    rerun()
                 else:
                     st.error("❌ 아이디 또는 비밀번호가 올바르지 않습니다.")
 
@@ -911,7 +911,7 @@ def show_login_page():
                     st.session_state.logged_in = True
                     st.session_state.username = new_user
                     change_page("menu")
-                    st.rerun()
+                    rerun()
                 else:
                     st.warning("⚠️ 이미 존재하는 아이디입니다.")
 
