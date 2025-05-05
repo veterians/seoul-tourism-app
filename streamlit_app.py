@@ -490,14 +490,15 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
     markers_js = ""
     for i, marker in enumerate(markers):
         color = marker.get('color', 'red')
-        title = marker.get('title', '').replace("'", "\\'").replace('"', '\\"')
-        info = marker.get('info', '').replace("'", "\\'").replace('"', '\\"')
-        category = marker.get('category', '').replace("'", "\\'").replace('"', '\\"')
+        # 백슬래시 처리를 위해 replace 함수 사용
+        title = marker.get('title', '').replace("'", r"\'").replace('"', r'\"')
+        info = marker.get('info', '').replace("'", r"\'").replace('"', r'\"')
+        category = marker.get('category', '').replace("'", r"\'").replace('"', r'\"')
         
         # 마커 아이콘 URL
         icon_url = f"http://maps.google.com/mapfiles/ms/icons/{color}-dot.png"
         
-        # 정보창 HTML 내용
+        # 정보창 HTML 내용 - 백슬래시를 포함한 문자열을 변수에 저장
         info_content = f"""
             <div style="padding: 10px; max-width: 300px;">
                 <h3 style="margin-top: 0; color: #1976D2;">{title}</h3>
@@ -506,50 +507,50 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
             </div>
         """
         
-        # 마커 생성 코드
-        markers_js += f"""
-            var marker{i} = new google.maps.Marker({{
-                position: {{ lat: {marker['lat']}, lng: {marker['lng']} }},
+        # 마커 생성 코드 - format 메서드 사용
+        markers_js += """
+            var marker{0} = new google.maps.Marker({{
+                position: {{ lat: {1}, lng: {2} }},
                 map: map,
-                title: '{title}',
-                icon: '{icon_url}',
+                title: '{3}',
+                icon: '{4}',
                 animation: google.maps.Animation.DROP
             }});
             
-            markers.push(marker{i});
-            markerCategories.push('{category}');
+            markers.push(marker{0});
+            markerCategories.push('{5}');
             
-            var infowindow{i} = new google.maps.InfoWindow({{
-                content: '{info_content}'
+            var infowindow{0} = new google.maps.InfoWindow({{
+                content: '{6}'
             }});
             
-            marker{i}.addListener('click', function() {{
+            marker{0}.addListener('click', function() {{
                 closeAllInfoWindows();
-                infowindow{i}.open(map, marker{i});
+                infowindow{0}.open(map, marker{0});
                 
                 // 마커 바운스 애니메이션
                 if (currentMarker) currentMarker.setAnimation(null);
-                marker{i}.setAnimation(google.maps.Animation.BOUNCE);
-                currentMarker = marker{i};
+                marker{0}.setAnimation(google.maps.Animation.BOUNCE);
+                currentMarker = marker{0};
                 
                 // 애니메이션 종료
                 setTimeout(function() {{
-                    marker{i}.setAnimation(null);
+                    marker{0}.setAnimation(null);
                 }}, 1500);
                 
                 // 부모 창에 마커 클릭 이벤트 전달
                 window.parent.postMessage({{
                     'type': 'marker_click',
-                    'id': {i},
-                    'title': '{title}',
-                    'lat': {marker['lat']},
-                    'lng': {marker['lng']},
-                    'category': '{category}'
+                    'id': {0},
+                    'title': '{3}',
+                    'lat': {1},
+                    'lng': {2},
+                    'category': '{5}'
                 }}, '*');
             }});
             
-            infoWindows.push(infowindow{i});
-        """
+            infoWindows.push(infowindow{0});
+        """.format(i, marker['lat'], marker['lng'], title, icon_url, category, info_content)
     
     # 필터링 함수
     filter_js = """
