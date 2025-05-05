@@ -871,7 +871,7 @@ def show_login_page():
     
     with col2:
         page_header("서울 관광앱")
-        st.image("https://i.imgur.com/0aMYJHa.png", width=300)
+        st.image("https://raw.githubusercontent.com/veterians/seoul-tourism-app/main/assets/logo.png", width=300)
         
         tab1, tab2 = st.tabs(["로그인", "회원가입"])
 
