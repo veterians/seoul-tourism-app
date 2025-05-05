@@ -463,6 +463,11 @@ def process_dataframe(df, category, language="한국어"):
     
     return markers
 
+# 1. streamlit_app.py 파일에서 다음 함수를 찾으세요:
+def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=13, language="ko"):
+
+# 2. 이 함수를 다음 코드로 완전히 교체하세요:
+
 def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=13, language="ko"):
     """Google Maps HTML 생성"""
     if markers is None:
@@ -482,7 +487,16 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
         # 해당 카테고리의 마커가 있는 경우만 표시
         if any(m.get('category') == category for m in markers):
             count = sum(1 for m in markers if m.get('category') == category)
-            legend_items.append(f'<div class="legend-item"><img src="http://maps.google.com/mapfiles/ms/icons/{color}-dot.png" alt="{category}"> {category} ({count})</div>')
+            legend_html_item = '<div class="legend-item"><img src="http://maps.google.com/mapfiles/ms/icons/'
+            legend_html_item += color 
+            legend_html_item += '-dot.png" alt="'
+            legend_html_item += category 
+            legend_html_item += '"> '
+            legend_html_item += category
+            legend_html_item += ' ('
+            legend_html_item += str(count)
+            legend_html_item += ')</div>'
+            legend_items.append(legend_html_item)
     
     legend_html = "".join(legend_items)
     
@@ -490,30 +504,24 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
     markers_js = ""
     for i, marker in enumerate(markers):
         color = marker.get('color', 'red')
-        # 백슬래시 문제 해결: title과 info 변수를 미리 준비
-        title = marker.get('title', '')
-        title = title.replace("'", "\\'").replace('"', '\\"')
-        
-        info = marker.get('info', '')
-        info = info.replace("'", "\\'").replace('"', '\\"')
-        
-        category = marker.get('category', '')
-        category = category.replace("'", "\\'").replace('"', '\\"')
+        title = marker.get('title', '').replace("'", "\\\'").replace('"', '\\\"')
+        info = marker.get('info', '').replace("'", "\\\'").replace('"', '\\\"')
+        category = marker.get('category', '').replace("'", "\\\'").replace('"', '\\\"')
         
         # 마커 아이콘 URL
-        icon_url = f"http://maps.google.com/mapfiles/ms/icons/{color}-dot.png"
+        icon_url = "http://maps.google.com/mapfiles/ms/icons/" + color + "-dot.png"
         
-        # 정보창 HTML 내용 (백슬래시 문제 없도록 수정)
+        # 정보창 HTML 내용
         info_content = """
             <div style="padding: 10px; max-width: 300px;">
                 <h3 style="margin-top: 0; color: #1976D2;">{0}</h3>
                 <p><strong>분류:</strong> {1}</p>
                 <div>{2}</div>
             </div>
-        """.format(title, category, info)
+        """.format(title, category, info).replace("'", "\\\\'").replace("\n", "")
         
-        # 마커 생성 코드 - format() 사용하여 백슬래시 문제 해결
-        markers_js += """
+        # 마커 생성 코드
+        marker_js_template = """
             var marker{0} = new google.maps.Marker({{
                 position: {{ lat: {1}, lng: {2} }},
                 map: map,
@@ -555,10 +563,14 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
             }});
             
             infoWindows.push(infowindow{0});
-        """.format(i, marker['lat'], marker['lng'], title, icon_url, category, info_content.replace("'", "\\'").replace("\n", ""))
-    
-    # 필터링 함수와 나머지 코드는 그대로 유지
-    # ... (나머지 코드)
+        """
+        
+        # format 메서드로 동적 값 채우기
+        curr_marker_js = marker_js_template.format(
+            i, marker['lat'], marker['lng'], title, icon_url, category, info_content
+        )
+        
+        markers_js += curr_marker_js
     
     # 필터링 함수
     filter_js = """
@@ -589,27 +601,32 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
         });
     """
     
-    # 전체 HTML 코드 생성
-    html = f"""
+    # 필터 버튼 HTML 생성
+    filter_buttons = '<button id="filter-all" class="filter-button active" onclick="filterMarkers(\'all\')">전체 보기</button>'
+    for cat in categories.keys():
+        filter_buttons += ' <button id="filter-' + cat + '" class="filter-button" onclick="filterMarkers(\'' + cat + '\')">' + cat + '</button>'
+    
+    # 전체 HTML 코드 생성 - 문자열 결합으로 f-string 대신 사용
+    html = """
     <!DOCTYPE html>
     <html>
     <head>
         <title>서울 관광 지도</title>
         <meta charset="utf-8">
         <style>
-            #map {{
+            #map {
                 height: 100%;
                 width: 100%;
                 margin: 0;
                 padding: 0;
-            }}
-            html, body {{
+            }
+            html, body {
                 height: 100%;
                 margin: 0;
                 padding: 0;
                 font-family: 'Noto Sans KR', Arial, sans-serif;
-            }}
-            .map-controls {{
+            }
+            .map-controls {
                 position: absolute;
                 top: 10px;
                 left: 10px;
@@ -621,23 +638,23 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
                 max-width: 90%;
                 overflow-x: auto;
                 white-space: nowrap;
-            }}
-            .filter-button {{
+            }
+            .filter-button {
                 margin: 5px;
                 padding: 5px 10px;
                 background-color: #f8f9fa;
                 border: 1px solid #dadce0;
                 border-radius: 4px;
                 cursor: pointer;
-            }}
-            .filter-button:hover {{
+            }
+            .filter-button:hover {
                 background-color: #e8eaed;
-            }}
-            .filter-button.active {{
+            }
+            .filter-button.active {
                 background-color: #1976D2;
                 color: white;
-            }}
-            #legend {{
+            }
+            #legend {
                 font-family: 'Noto Sans KR', Arial, sans-serif;
                 background-color: white;
                 border: 1px solid #ccc;
@@ -649,18 +666,18 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
                 position: absolute;
                 right: 10px;
                 z-index: 5;
-            }}
-            .legend-item {{
+            }
+            .legend-item {
                 margin-bottom: 5px;
                 display: flex;
                 align-items: center;
-            }}
-            .legend-item img {{
+            }
+            .legend-item img {
                 width: 20px;
                 height: 20px;
                 margin-right: 5px;
-            }}
-            .custom-control {{
+            }
+            .custom-control {
                 background-color: #fff;
                 border: 0;
                 border-radius: 2px;
@@ -671,7 +688,7 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
                 overflow: hidden;
                 height: 40px;
                 cursor: pointer;
-            }}
+            }
         </style>
         <script src="https://developers.google.com/maps/documentation/javascript/examples/markerclusterer/markerclusterer.js"></script>
     </head>
@@ -681,14 +698,13 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
         <!-- 카테고리 필터 -->
         <div class="map-controls" id="category-filter">
             <div style="margin-bottom: 8px; font-weight: bold;">카테고리 필터</div>
-            <button id="filter-all" class="filter-button active" onclick="filterMarkers('all')">전체 보기</button>
-            {' '.join([f'<button id="filter-{cat}" class="filter-button" onclick="filterMarkers(\'{cat}\')">{cat}</button>' for cat in categories.keys()])}
+            """ + filter_buttons + """
         </div>
         
         <!-- 지도 범례 -->
         <div id="legend">
             <div style="font-weight: bold; margin-bottom: 8px;">지도 범례</div>
-            {legend_html}
+            """ + legend_html + """
         </div>
         
         <script>
@@ -709,8 +725,8 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
             function initMap() {
                 // 지도 생성
                 map = new google.maps.Map(document.getElementById('map'), {
-                    center: { lat: ${center_lat}, lng: ${center_lng} },
-                    zoom: ${zoom},
+                    center: { lat: """ + str(center_lat) + """, lng: """ + str(center_lng) + """ },
+                    zoom: """ + str(zoom) + """,
                     fullscreenControl: true,
                     mapTypeControl: true,
                     streetViewControl: true,
@@ -773,13 +789,13 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
                 );
                 
                 // 마커 추가
-                ${markers_js}
+                """ + markers_js + """
                 
                 // 마커 클러스터링
-                ${clustering_js}
+                """ + clustering_js + """
                 
                 // 필터링 함수
-                ${filter_js}
+                """ + filter_js + """
                 
                 // 지도 클릭 이벤트
                 map.addListener('click', function(event) {
@@ -798,13 +814,13 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
                 });
             }
         </script>
-        <script src="https://maps.googleapis.com/maps/api/js?key=${api_key}&callback=initMap&language=${language}" async defer></script>
+        <script src="https://maps.googleapis.com/maps/api/js?key=""" + api_key + """&callback=initMap&language=""" + language + """" async defer></script>
     </body>
     </html>
     """
     
     return html
-
+    
 def show_google_map(api_key, center_lat, center_lng, markers=None, zoom=13, height=600, language="한국어"):
     """Google Maps 컴포넌트 표시"""
     # 언어 코드 변환
