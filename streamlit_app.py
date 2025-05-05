@@ -490,24 +490,29 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
     markers_js = ""
     for i, marker in enumerate(markers):
         color = marker.get('color', 'red')
-        # 백슬래시 처리를 위해 replace 함수 사용
-        title = marker.get('title', '').replace("'", r"\'").replace('"', r'\"')
-        info = marker.get('info', '').replace("'", r"\'").replace('"', r'\"')
-        category = marker.get('category', '').replace("'", r"\'").replace('"', r'\"')
+        # 백슬래시 문제 해결: title과 info 변수를 미리 준비
+        title = marker.get('title', '')
+        title = title.replace("'", "\\'").replace('"', '\\"')
+        
+        info = marker.get('info', '')
+        info = info.replace("'", "\\'").replace('"', '\\"')
+        
+        category = marker.get('category', '')
+        category = category.replace("'", "\\'").replace('"', '\\"')
         
         # 마커 아이콘 URL
         icon_url = f"http://maps.google.com/mapfiles/ms/icons/{color}-dot.png"
         
-        # 정보창 HTML 내용 - 백슬래시를 포함한 문자열을 변수에 저장
-        info_content = f"""
+        # 정보창 HTML 내용 (백슬래시 문제 없도록 수정)
+        info_content = """
             <div style="padding: 10px; max-width: 300px;">
-                <h3 style="margin-top: 0; color: #1976D2;">{title}</h3>
-                <p><strong>분류:</strong> {category}</p>
-                <div>{info}</div>
+                <h3 style="margin-top: 0; color: #1976D2;">{0}</h3>
+                <p><strong>분류:</strong> {1}</p>
+                <div>{2}</div>
             </div>
-        """
+        """.format(title, category, info)
         
-        # 마커 생성 코드 - format 메서드 사용
+        # 마커 생성 코드 - format() 사용하여 백슬래시 문제 해결
         markers_js += """
             var marker{0} = new google.maps.Marker({{
                 position: {{ lat: {1}, lng: {2} }},
@@ -550,7 +555,10 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
             }});
             
             infoWindows.push(infowindow{0});
-        """.format(i, marker['lat'], marker['lng'], title, icon_url, category, info_content)
+        """.format(i, marker['lat'], marker['lng'], title, icon_url, category, info_content.replace("'", "\\'").replace("\n", ""))
+    
+    # 필터링 함수와 나머지 코드는 그대로 유지
+    # ... (나머지 코드)
     
     # 필터링 함수
     filter_js = """
