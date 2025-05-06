@@ -67,75 +67,6 @@ PLACE_XP = {
 LANGUAGE_CODES = {
     "한국어": "ko",
     "영어": "en", 
-    "중국어": "zh-CN"import streamlit as st
-import pandas as pd
-import json
-import os
-import time
-import random
-from datetime import datetime
-from pathlib import Path
-from geopy.distance import geodesic
-
-# 페이지 설정
-st.set_page_config(
-    page_title="서울 관광앱",
-    page_icon="🗼",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
-
-
-
-#################################################
-# 상수 및 설정 값
-#################################################
-
-# Google Maps 기본 중심 위치 (서울시청)
-DEFAULT_LOCATION = [37.5665, 126.9780]
-
-# 카테고리별 마커 색상
-CATEGORY_COLORS = {
-    "체육시설": "blue",
-    "공연행사": "purple",
-    "관광기념품": "green",
-    "한국음식점": "orange",
-    "미술관/전시": "pink",
-    "종로구 관광지": "red",
-    "기타": "gray"
-}
-
-# 파일명과 카테고리 매핑
-FILE_CATEGORIES = {
-    "체육시설": ["체육시설", "공연행사"],
-    "관광기념품": ["관광기념품", "외국인전용"],
-    "한국음식점": ["음식점", "한국음식"],
-    "미술관/전시": ["미술관", "전시"],
-    "종로구 관광지": ["종로구", "관광데이터"]
-}
-
-# 세션 데이터 저장 파일
-SESSION_DATA_FILE = "data/session_data.json"
-
-# 경험치 설정
-XP_PER_LEVEL = 200
-PLACE_XP = {
-    "경복궁": 80,
-    "남산서울타워": 65,
-    "동대문 DDP": 35,
-    "명동": 25,
-    "인사동": 40,
-    "창덕궁": 70,
-    "북촌한옥마을": 50,
-    "광장시장": 30,
-    "서울숲": 20,
-    "63빌딩": 45
-}
-
-# 언어 코드 매핑
-LANGUAGE_CODES = {
-    "한국어": "ko",
-    "영어": "en", 
     "중국어": "zh-CN"
 }
 
@@ -406,12 +337,12 @@ def get_location_position():
         
     return DEFAULT_LOCATION  # 기본 위치 (서울시청)
 
-def load_excel_files():
-    """GitHub 저장소의 7개 Excel 파일을 로드"""
+def load_excel_files(language="한국어"):
+    """데이터 폴더에서 지정된 Excel 파일 로드"""
     data_folder = Path("asset")
     all_markers = []
     
-    # GitHub 저장소의 7개 Excel 파일 목록
+    # 명시적으로 로드할 7개 파일 지정
     excel_files = [
         "서울시 자랑스러운 한국음식점 정보 한국어영어중국어 1.xlsx",
         "서울시 종로구 관광데이터 정보 한국어영어 1.xlsx",
@@ -423,14 +354,26 @@ def load_excel_files():
     ]
     
     if not data_folder.exists():
-        st.warning(f"데이터 폴더({data_folder})가 존재하지 않습니다.")
+        st.warning(f"데이터 폴더({data_folder})가 존재하지 않습니다. 폴더를 생성합니다.")
+        data_folder.mkdir(parents=True, exist_ok=True)
+    
+    # 파일 하나라도 존재하는지 확인
+    files_exist = False
+    for file_name in excel_files:
+        if (data_folder / file_name).exists():
+            files_exist = True
+            break
+    
+    if not files_exist:
+        st.error("지정된 Excel 파일이 하나도 존재하지 않습니다. asset 폴더에 파일을 추가해주세요.")
         return []
     
+    # 각 파일 처리
     for file_name in excel_files:
         try:
             file_path = data_folder / file_name
             
-            # 파일이 존재하지 않으면 다음 파일로
+            # 파일이 존재하지 않으면 건너뛰기
             if not file_path.exists():
                 st.warning(f"파일을 찾을 수 없습니다: {file_name}")
                 continue
@@ -451,14 +394,17 @@ def load_excel_files():
             markers = process_dataframe(df, file_category, language)
             all_markers.extend(markers)
             
-            st.success(f"{file_name}: {len(markers)}개 마커 로드")
-        
+            if len(markers) > 0:
+                st.success(f"{file_name}: {len(markers)}개 마커 로드")
+            else:
+                st.warning(f"{file_name}: 유효한 마커 데이터가 없습니다.")
+            
         except Exception as e:
             st.error(f"{file_name} 처리 오류: {str(e)}")
     
     return all_markers
 
-def process_dataframe(df, category, language="한국어"):
+def process_dataframe(df, category):
     """데이터프레임을 Google Maps 마커 형식으로 변환"""
     markers = []
     
@@ -1249,17 +1195,44 @@ def show_map_page():
     # 사용자 위치 가져오기
     user_location = get_location_position()
     
-    # 자동으로 Excel 파일 로드 (마커가 아직 로드되지 않은 경우)
-    if not hasattr(st.session_state, 'all_markers') or not st.session_state.all_markers:
-        with st.spinner("서울 관광 데이터를 로드하는 중..."):
-            all_markers = load_excel_files(st.session_state.language)
-            if all_markers:
-                st.session_state.all_markers = all_markers
-                st.session_state.markers_loaded = True
-                st.session_state.tourism_data = all_markers  # 코스 추천을 위해 저장
-                st.success(f"총 {len(all_markers)}개의 관광지 로드 완료!")
-            else:
-                st.warning("관광지 데이터를 로드할 수 없습니다.")
+    # 자동으로 Excel 파일 로드 (매번 새로 로드)
+    with st.spinner("서울 관광 데이터를 로드하는 중..."):
+        all_markers = load_excel_files(st.session_state.language)
+        if all_markers:
+            st.session_state.all_markers = all_markers
+            st.session_state.markers_loaded = True
+            st.session_state.tourism_data = all_markers  # 코스 추천을 위해 저장
+            st.success(f"총 {len(all_markers)}개의 관광지 로드 완료!")
+        else:
+            st.warning("관광지 데이터를 로드할 수 없습니다.")
+    
+    # 데이터 관리 사이드바
+    with st.sidebar:
+        st.header("데이터 관리")
+        
+        # 데이터 새로고침 버튼
+        if st.button("데이터 새로고침", use_container_width=True):
+            with st.spinner("데이터를 다시 로드하는 중..."):
+                all_markers = load_excel_files(st.session_state.language)
+                if all_markers:
+                    st.session_state.all_markers = all_markers
+                    st.session_state.markers_loaded = True
+                    st.success(f"총 {len(all_markers)}개의 관광지 로드 완료!")
+                else:
+                    st.warning("데이터를 로드할 수 없습니다.")
+        
+        # 파일 업로드
+        uploaded_files = st.file_uploader(
+            "Excel 파일 업로드 (.xlsx)",
+            type=["xlsx"],
+            accept_multiple_files=True
+        )
+        
+        if uploaded_files:
+            if st.button("업로드한 파일 처리", use_container_width=True):
+                with st.spinner("파일을 처리하는 중..."):
+                    # 파일 처리 로직 (실제 구현 필요)
+                    st.success("파일 업로드 완료!")
     
     # 내비게이션 모드가 아닌 경우 기본 지도 표시
     if not st.session_state.navigation_active:
