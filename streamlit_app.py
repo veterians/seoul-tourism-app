@@ -1461,7 +1461,7 @@ def show_map_page():
                         st.rerun()
 
 def show_course_page():
-    """관광 코스 추천 페이지 표시"""
+    """개선된 관광 코스 추천 페이지"""
     page_header("서울 관광 코스 짜주기")
     
     # 뒤로가기 버튼
@@ -1524,62 +1524,24 @@ def show_course_page():
             st.warning("최소 하나 이상의 여행 스타일을 선택해주세요.")
         else:
             with st.spinner("최적의 관광 코스를 생성 중입니다..."):
-                # 로딩 효과를 위한 딜레이
-                time.sleep(2)
-                
-                # 스타일에 따른 코스 추천
-                if "역사/문화" in selected_styles:
-                    course_type = "문화 코스"
-                elif "쇼핑" in selected_styles or "맛집" in selected_styles:
-                    course_type = "쇼핑 코스"
-                elif "휴양" in selected_styles or "자연" in selected_styles:
-                    course_type = "자연 코스"
-                else:
-                    course_type = "대중적 코스"
-                
-                # 현재 데이터 확인
+                # 데이터 확인
                 if not hasattr(st.session_state, 'all_markers') or not st.session_state.all_markers:
+                    # 데이터가 없으면 로드 시도
                     with st.spinner("관광지 데이터를 로드하는 중..."):
                         all_markers = load_excel_files(st.session_state.language)
                         if all_markers:
                             st.session_state.all_markers = all_markers
+                            st.session_state.tourism_data = all_markers
                         else:
-                            # 데이터가 없을 경우 기본 코스 사용
-                            all_markers = []
-                else:
-                    all_markers = st.session_state.all_markers
+                            st.warning("관광지 데이터가 없습니다. 기본 추천 코스를 사용합니다.")
                 
-                # 기본 코스에서 추천
-                recommended_course = RECOMMENDATION_COURSES.get(course_type, [])
-                
-                # 충분한 데이터가 있으면 실제 마커 데이터 사용
-                if all_markers and len(all_markers) > 10:
-                    # 카테고리별 장소 필터링
-                    filtered_markers = []
-                    if "역사/문화" in selected_styles:
-                        filtered_markers.extend([m for m in all_markers if "역사" in m.get('category', '').lower() or "문화" in m.get('category', '').lower() or "미술관" in m.get('category', '').lower()])
-                    if "쇼핑" in selected_styles:
-                        filtered_markers.extend([m for m in all_markers if "쇼핑" in m.get('category', '').lower() or "기념품" in m.get('category', '').lower()])
-                    if "맛집" in selected_styles:
-                        filtered_markers.extend([m for m in all_markers if "음식" in m.get('category', '').lower() or "맛집" in m.get('category', '').lower()])
-                    if "자연" in selected_styles:
-                        filtered_markers.extend([m for m in all_markers if "자연" in m.get('category', '').lower() or "공원" in m.get('category', '').lower()])
-                    
-                    # 중복 제거
-                    seen = set()
-                    filtered_markers = [m for m in filtered_markers if not (m['title'] in seen or seen.add(m['title']))]
-                    
-                    # 장소가 충분하면 사용, 그렇지 않으면 기본 코스에 추가
-                    if filtered_markers and len(filtered_markers) >= delta * 3:
-                        random.shuffle(filtered_markers)
-                        recommended_course = []
-                        for i in range(min(delta * 3, len(filtered_markers))):
-                            recommended_course.append(filtered_markers[i]['title'])
-                    elif filtered_markers:
-                        # 기본 코스에 필터링된 장소 추가
-                        for m in filtered_markers[:5]:
-                            if m['title'] not in recommended_course:
-                                recommended_course.append(m['title'])
+                # 코스 추천 실행
+                recommended_places, course_type, daily_courses = recommend_courses(
+                    st.session_state.all_markers if hasattr(st.session_state, 'all_markers') else [],
+                    selected_styles,
+                    delta,
+                    include_children
+                )
                 
                 st.success("코스 생성 완료!")
                 
@@ -1587,54 +1549,68 @@ def show_course_page():
                 st.markdown("## 추천 코스")
                 st.markdown(f"**{course_type}** - {delta}일 일정")
                 
-                # 코스 마커 및 정보 준비
-                course_markers = []
-                
                 # 일별 코스 표시
-                for day in range(1, min(delta+1, 4)):  # 최대 3일까지
-                    st.markdown(f"### Day {day}")
-                    
-                    # 일별 방문 장소 선택
-                    day_spots = []
-                    if day == 1:
-                        day_spots = recommended_course[:3]  # 첫날 3곳
-                    elif day == 2:
-                        day_spots = recommended_course[3:6] if len(recommended_course) > 3 else recommended_course[:3]
-                    else:  # 3일차 이상
-                        day_spots = recommended_course[6:9] if len(recommended_course) > 6 else recommended_course[:3]
-                    
-                    # 표시할 장소가 없으면 기본 추천
-                    if not day_spots:
-                        day_spots = ["경복궁", "남산서울타워", "명동"]
-                    
-                    timeline = st.columns(len(day_spots))
-                    
-                    for i, spot_name in enumerate(day_spots):
-                        # 장소 정보 찾기 (마커 데이터에서 또는 기본값 사용)
-                        spot_info = None
-                        if all_markers:
-                            spot_info = next((m for m in all_markers if m['title'] == spot_name), None)
+                if daily_courses:
+                    # 실제 데이터 기반 일별 코스 표시
+                    for day_idx, day_course in enumerate(daily_courses):
+                        st.markdown(f"### Day {day_idx + 1}")
                         
-                        # 방문 시간대 설정
-                        time_slots = ["09:00-12:00", "13:00-16:00", "16:00-19:00"]
-                        time_slot = time_slots[i % 3]
+                        if not day_course:
+                            st.info("추천 장소가 부족합니다.")
+                            continue
                         
-                        with timeline[i]:
-                            st.markdown(f"**{time_slot}**")
-                            st.markdown(f"**{spot_name}**")
-                            
-                            if spot_info:
-                                st.caption(f"분류: {spot_info.get('category', '관광지')}")
+                        # 시간대별 장소 표시
+                        time_slots = ["오전 (09:00-12:00)", "오후 (13:00-16:00)", "저녁 (16:00-19:00)"]
+                        timeline = st.columns(len(day_course))
+                        
+                        for i, place in enumerate(day_course):
+                            with timeline[i]:
+                                time_idx = min(i, len(time_slots) - 1)
+                                st.markdown(f"**{time_slots[time_idx]}**")
+                                st.markdown(f"**{place['title']}**")
+                                st.caption(f"분류: {place['category']}")
                                 
-                                # 경로에 추가
-                                course_markers.append(spot_info)
-                            else:
+                                # 간단한 설명 추가
+                                info_text = ""
+                                if 'address' in place and place['address']:
+                                    info_text += f"위치: {place['address']}"
+                                    if len(place['address']) > 20:
+                                        info_text = info_text[:20] + "..."
+                                st.caption(info_text)
+                else:
+                    # 기본 코스 데이터 표시
+                    for day in range(1, min(delta+1, 4)):  # 최대 3일까지
+                        st.markdown(f"### Day {day}")
+                        
+                        # 일별 방문 장소 선택
+                        day_spots = []
+                        if day == 1:
+                            day_spots = recommended_places[:3]  # 첫날 3곳
+                        elif day == 2:
+                            day_spots = recommended_places[3:6] if len(recommended_places) > 3 else recommended_places[:3]
+                        else:  # 3일차 이상
+                            day_spots = recommended_places[6:9] if len(recommended_places) > 6 else recommended_places[:3]
+                        
+                        # 표시할 장소가 없으면 기본 추천
+                        if not day_spots:
+                            day_spots = ["경복궁", "남산서울타워", "명동"]
+                        
+                        timeline = st.columns(len(day_spots))
+                        
+                        for i, spot_name in enumerate(day_spots):
+                            # 시간대 설정
+                            time_slots = ["오전 (09:00-12:00)", "오후 (13:00-16:00)", "저녁 (16:00-19:00)"]
+                            time_slot = time_slots[i % 3]
+                            
+                            with timeline[i]:
+                                st.markdown(f"**{time_slot}**")
+                                st.markdown(f"**{spot_name}**")
                                 st.caption("관광지")
                 
                 # 지도에 코스 표시
                 st.markdown("### 🗺️ 코스 지도")
                 
-                # 필요한 경우 API 키 확인
+                # API 키 확인
                 api_key = st.session_state.google_maps_api_key
                 if not api_key:
                     st.error("Google Maps API 키가 설정되지 않았습니다.")
@@ -1642,37 +1618,72 @@ def show_course_page():
                     if api_key:
                         st.session_state.google_maps_api_key = api_key
                 
-                # 코스 마커 표시
-                if course_markers:
+                # 코스 마커 생성
+                map_markers = []
+                
+                if daily_courses:
+                    # 실제 데이터 기반 코스
+                    for day_idx, day_course in enumerate(daily_courses):
+                        for time_idx, place in enumerate(day_course):
+                            # 시간대별 색상 구분
+                            colors = ["blue", "green", "purple"]
+                            color = colors[time_idx % len(colors)]
+                            
+                            marker = {
+                                'lat': place['lat'],
+                                'lng': place['lng'],
+                                'title': f"Day {day_idx+1} - {place['title']}",
+                                'info': f"Day {day_idx+1} {time_slots[time_idx]}<br>{place.get('info', '')}",
+                                'category': place['category'],
+                                'color': color
+                            }
+                            map_markers.append(marker)
+                else:
+                    # 기본 코스 - 좌표 데이터가 없어 지도 표시 불가
+                    st.warning("코스 장소의 좌표 정보가 없어 지도에 표시할 수 없습니다.")
+                
+                # 지도 표시
+                if map_markers:
                     # 지도 중심 좌표 계산 (마커들의 평균)
-                    center_lat = sum(m['lat'] for m in course_markers) / len(course_markers)
-                    center_lng = sum(m['lng'] for m in course_markers) / len(course_markers)
+                    center_lat = sum(m['lat'] for m in map_markers) / len(map_markers)
+                    center_lng = sum(m['lng'] for m in map_markers) / len(map_markers)
                     
                     # 지도 표시
                     show_google_map(
                         api_key=api_key,
                         center_lat=center_lat,
                         center_lng=center_lng,
-                        markers=course_markers,
+                        markers=map_markers,
                         zoom=12,
                         height=500,
                         language=st.session_state.language
                     )
-                else:
-                    # 실제 좌표 데이터가 없는 경우
-                    st.warning("코스 장소의 좌표 정보가 없어 지도에 표시할 수 없습니다.")
                 
                 # 일정 저장 버튼
                 if st.button("이 코스 저장하기", use_container_width=True):
                     if 'saved_courses' not in st.session_state:
                         st.session_state.saved_courses = []
                     
-                    st.session_state.saved_courses.append({
+                    # 코스 정보 저장
+                    course_info = {
                         "type": course_type,
                         "days": delta,
-                        "places": recommended_course,
-                        "date": start_date.strftime("%Y-%m-%d")
-                    })
+                        "date": start_date.strftime("%Y-%m-%d"),
+                        "styles": selected_styles
+                    }
+                    
+                    if daily_courses:
+                        # 실제 데이터 기반 코스
+                        course_info["daily_places"] = []
+                        for day in daily_courses:
+                            day_places = [place['title'] for place in day]
+                            course_info["daily_places"].append(day_places)
+                    else:
+                        # 기본 코스
+                        course_info["places"] = recommended_places
+                    
+                    st.session_state.saved_courses.append(course_info)
+                    save_session_data()  # 세션 데이터 저장
                     
                     st.success("코스가 저장되었습니다!")
 
