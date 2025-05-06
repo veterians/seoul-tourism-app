@@ -947,7 +947,7 @@ def show_login_page():
 
     with pic3:
         main_image_path = Path("asset") / "SeoulTripView.png"
-        st.image(main_image_path, width=300)
+        st.image(main_image_path, use_column_wdith=True)
     
     col1, col2, col3 = st.columns([1, 2, 1])
     
