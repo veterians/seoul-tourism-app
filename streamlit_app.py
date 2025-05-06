@@ -377,48 +377,52 @@ def get_location_position():
 # 데이터 로드 함수
 #################################################
 
-def load_excel_files(language="한국어"):
-    """명시적으로 지정된 7개의 Excel 파일 로드"""
+def load_excel_files():
+    """데이터 폴더에서 지정된 Excel 파일 로드"""
     data_folder = Path("asset")
     all_markers = []
     
-    # 데이터 폴더 존재 확인 및 생성
+    # 명시적으로 로드할 파일 목록 (GitHub에 있는 7개 파일)
+    excel_files = [
+        "서울시 자랑스러운 한국음식점 정보 한국어영어중국어 1.xlsx",
+        "서울시 종로구 관광데이터 정보 한국어영어 1.xlsx",
+        "서울시 체육시설 공연행사 정보 한국어영어중국어 1.xlsx",
+        "서울시 문화행사 공공서비스예약 정보한국어영어중국어 1.xlsx",
+        "서울시 외국인전용 관광기념품 판매점 정보한국어영어중국어 1.xlsx",
+        "서울시 종로구 관광데이터 정보 중국어 1.xlsx",
+        "서울시립미술관 전시정보 한국어영어중국어 1.xlsx"
+    ]
+    
+    # 데이터 폴더 확인 및 생성
     if not data_folder.exists():
         st.warning(f"데이터 폴더({data_folder})가 존재하지 않습니다. 폴더를 생성합니다.")
         data_folder.mkdir(parents=True, exist_ok=True)
     
     # 파일 하나라도 존재하는지 확인
     files_exist = False
-    for file_name in EXCEL_FILES:
+    for file_name in excel_files:
         if (data_folder / file_name).exists():
             files_exist = True
             break
     
     if not files_exist:
-        st.error("""
-        지정된 Excel 파일이 하나도 존재하지 않습니다. 
-        다음 파일들을 asset 폴더에 추가해주세요:
-        - 서울시 자랑스러운 한국음식점 정보 한국어영어중국어 1.xlsx
-        - 서울시 종로구 관광데이터 정보 한국어영어 1.xlsx
-        - 서울시 체육시설 공연행사 정보 한국어영어중국어 1.xlsx
-        - 서울시 문화행사 공공서비스예약 정보한국어영어중국어 1.xlsx
-        - 서울시 외국인전용 관광기념품 판매점 정보한국어영어중국어 1.xlsx
-        - 서울시 종로구 관광데이터 정보 중국어 1.xlsx
-        - 서울시립미술관 전시정보 한국어영어중국어 1.xlsx
-        """)
+        st.error("지정된 Excel 파일이 하나도 존재하지 않습니다. asset 폴더에 파일을 추가해주세요.")
         return []
     
     # 각 파일 처리
     loaded_files = 0
-    total_markers = 0
     
-    for file_name in EXCEL_FILES:
+    for file_name in excel_files:
         try:
             file_path = data_folder / file_name
             
             # 파일이 존재하지 않으면 건너뛰기
             if not file_path.exists():
+                st.warning(f"파일을 찾을 수 없습니다: {file_name}")
                 continue
+            
+            # 디버깅 정보 출력
+            st.info(f"파일 로드 중: {file_name}")
             
             # 파일 카테고리 결정
             file_category = "기타"
@@ -432,20 +436,30 @@ def load_excel_files(language="한국어"):
             # 파일 로드
             df = pd.read_excel(file_path, engine='openpyxl')
             
+            # 데이터프레임 기본 정보 출력
+            st.info(f"파일 '{file_name}' 열 정보: {list(df.columns)}")
+            st.info(f"파일 '{file_name}' 데이터 행 수: {len(df)}")
+            
             # 데이터 전처리 및 마커 변환
             markers = process_dataframe(df, file_category, language)
-            all_markers.extend(markers)
             
-            loaded_files += 1
-            total_markers += len(markers)
+            if markers:
+                all_markers.extend(markers)
+                st.success(f"{file_name}: {len(markers)}개 마커 로드 완료")
+                loaded_files += 1
+            else:
+                st.warning(f"{file_name}: 유효한 마커를 추출할 수 없습니다.")
             
         except Exception as e:
             st.error(f"{file_name} 처리 오류: {str(e)}")
+            # 오류 세부 정보
+            import traceback
+            st.error(traceback.format_exc())
     
     if loaded_files > 0:
-        st.success(f"{loaded_files}개 파일에서 총 {total_markers}개의 마커를 로드했습니다.")
+        st.success(f"{loaded_files}개 파일에서 총 {len(all_markers)}개의 마커를 로드했습니다.")
     else:
-        st.warning("유효한 마커 데이터가 없습니다.")
+        st.warning("유효한 마커 데이터를 찾을 수 없습니다.")
     
     return all_markers
 
@@ -461,32 +475,54 @@ def process_dataframe(df, category, language="한국어"):
             df['Y좌표'] = df['Y坐标']
         else:
             st.warning(f"'{category}' 데이터에 좌표 열이 없습니다.")
-            return []
+            # 좌표 열 이름이 다를 수 있으므로 비슷한 열 찾기
+            x_candidates = [col for col in df.columns if '좌표' in col and ('x' in col.lower() or 'X' in col)]
+            y_candidates = [col for col in df.columns if '좌표' in col and ('y' in col.lower() or 'Y' in col)]
+            
+            if x_candidates and y_candidates:
+                st.info(f"대체 좌표 열 사용: {x_candidates[0]}, {y_candidates[0]}")
+                df['X좌표'] = df[x_candidates[0]]
+                df['Y좌표'] = df[y_candidates[0]]
+            else:
+                return []
     
     # 언어별 열 이름 결정
     name_col = '명칭(한국어)'
-    if language == "영어" and '명칭(영어)' in df.columns:
-        name_col = '명칭(영어)'
-    elif language == "중국어" and '명칭(중국어)' in df.columns:
-        name_col = '명칭(중국어)'
+    name_candidates = []
+    
+    if language == "한국어":
+        name_candidates = ['명칭(한국어)', '명칭', '이름', '시설명', '관광지명', '장소명']
+    elif language == "영어":
+        name_candidates = ['명칭(영어)', 'PLACE', 'NAME', 'TITLE', 'ENGLISH_NAME']
+    elif language == "중국어":
+        name_candidates = ['명칭(중국어)', '名称', '中文名']
+    
+    # 후보 열 중 존재하는 첫 번째 열 사용
+    for col in name_candidates:
+        if col in df.columns:
+            name_col = col
+            break
     
     # 중국어 종로구 데이터 특별 처리
     if category == "종로구 관광지" and language == "중국어":
         if '名称' in df.columns:
             name_col = '名称'
     
-    # 기본 명칭 열이 없을 경우 대체 열 찾기
+    # 명칭 열이 없으면 경고
     if name_col not in df.columns:
-        alternate_cols = [col for col in df.columns if '명칭' in col or '이름' in col or 'name' in col.lower() or '名称' in col]
-        if alternate_cols:
-            name_col = alternate_cols[0]
+        st.warning(f"'{category}' 데이터에 적절한 명칭 열이 없습니다.")
+        st.info(f"사용 가능한 열: {list(df.columns)}")
+        # 명칭 열 대신 첫 번째 문자열 열 사용
+        string_cols = [col for col in df.columns if df[col].dtype == 'object']
+        if string_cols:
+            name_col = string_cols[0]
+            st.info(f"명칭 열 대체: {name_col}")
         else:
-            st.warning(f"'{category}' 데이터에 적절한 명칭 열이 없습니다.")
             return []
     
     # 주소 열 결정
     address_col = None
-    address_candidates = ['주소(한국어)', '주소', '소재지', '도로명주소', '지번주소']
+    address_candidates = ['주소(한국어)', '주소', '소재지', '도로명주소', '지번주소', 'ADDRESS']
     if language == "영어":
         address_candidates = ['주소(영어)'] + address_candidates
     elif language == "중국어":
@@ -497,25 +533,38 @@ def process_dataframe(df, category, language="한국어"):
             address_col = col
             break
     
-    # 유효한 좌표 데이터만 사용
+    # 좌표 데이터 중 null 값 제거
     df = df.dropna(subset=['X좌표', 'Y좌표'])
+    
+    # 좌표 데이터 변환 (문자열인 경우)
+    try:
+        df['X좌표'] = pd.to_numeric(df['X좌표'], errors='coerce')
+        df['Y좌표'] = pd.to_numeric(df['Y좌표'], errors='coerce')
+    except Exception as e:
+        st.warning(f"좌표 변환 오류: {str(e)}")
+    
+    # null 변환된 값 제거
+    df = df.dropna(subset=['X좌표', 'Y좌표'])
+    
+    # 유효한 좌표 범위 체크 (한국의 위/경도 범위 내)
     valid_coords = (df['X좌표'] >= 124) & (df['X좌표'] <= 132) & (df['Y좌표'] >= 33) & (df['Y좌표'] <= 43)
     df = df[valid_coords]
+    
+    if len(df) == 0:
+        st.warning(f"'{category}' 데이터에 유효한 좌표가 없습니다.")
+        return []
     
     # 중요도 점수 계산 (코스 추천에 활용)
     df['importance_score'] = 1.0  # 기본 점수
     
     if '입장료' in df.columns:
-        # 입장료가 있는 곳은 관광 명소일 가능성이 높음
         df.loc[df['입장료'].notna(), 'importance_score'] += 0.5
         
     if '이용시간' in df.columns or '운영시간' in df.columns:
-        # 운영시간 정보가 있는 곳은 주요 장소일 가능성이 높음
         time_col = '이용시간' if '이용시간' in df.columns else '운영시간'
         df.loc[df[time_col].notna(), 'importance_score'] += 0.3
         
     if '전화번호' in df.columns or 'TELNO' in df.columns:
-        # 전화번호가 있는 곳은 체계적인 장소일 가능성이 높음
         tel_col = '전화번호' if '전화번호' in df.columns else 'TELNO'
         df.loc[df[tel_col].notna(), 'importance_score'] += 0.2
     
@@ -523,16 +572,21 @@ def process_dataframe(df, category, language="한국어"):
     color = CATEGORY_COLORS.get(category, "gray")
     
     # 각 행을 마커로 변환
+    processed_markers = 0
     for _, row in df.iterrows():
         try:
             # 기본 정보
             if name_col in row and pd.notna(row[name_col]):
-                name = row[name_col]
+                name = str(row[name_col])
             else:
-                name = "이름 없음"
+                continue  # 이름이 없으면 건너뛰기
                 
             lat = float(row['Y좌표'])
             lng = float(row['X좌표'])
+            
+            # 좌표가 너무 이상하면 건너뛰기
+            if not (33 <= lat <= 43 and 124 <= lng <= 132):
+                continue
             
             # 주소 정보
             address = ""
@@ -574,11 +628,13 @@ def process_dataframe(df, category, language="한국어"):
                 'importance': row.get('importance_score', 1.0)  # 중요도 점수 추가
             }
             markers.append(marker)
+            processed_markers += 1
             
         except Exception as e:
             print(f"마커 생성 오류: {e}")
             continue
     
+    st.info(f"'{category}' 데이터에서 {processed_markers}개의 마커 생성 완료")
     return markers
 
 def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=13, language="ko"):
@@ -600,7 +656,7 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
         # 해당 카테고리의 마커가 있는 경우만 표시
         if any(m.get('category') == category for m in markers):
             count = sum(1 for m in markers if m.get('category') == category)
-            legend_html_item = '<div class="legend-item"><img src="http://maps.google.com/mapfiles/ms/icons/'
+            legend_html_item = '<div class="legend-item"><img src="https://maps.google.com/mapfiles/ms/icons/'
             legend_html_item += color 
             legend_html_item += '-dot.png" alt="'
             legend_html_item += category 
@@ -621,10 +677,10 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
         info = marker.get('info', '').replace("'", "\\\'").replace('"', '\\\"')
         category = marker.get('category', '').replace("'", "\\\'").replace('"', '\\\"')
         
-        # 마커 아이콘 URL
-        icon_url = "http://maps.google.com/mapfiles/ms/icons/" + color + "-dot.png"
-
-	# 정보창 HTML 내용
+        # 마커 아이콘 URL (HTTPS로 변경)
+        icon_url = "https://maps.google.com/mapfiles/ms/icons/" + color + "-dot.png"
+        
+        # 정보창 HTML 내용
         info_content = """
             <div style="padding: 10px; max-width: 300px;">
                 <h3 style="margin-top: 0; color: #1976D2;">{0}</h3>
@@ -704,14 +760,19 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
         }
     """
     
-    # 마커 클러스터링 코드
+    # 마커 클러스터링 코드 - 새로운 방식으로 수정
     clustering_js = """
-        // 마커 클러스터링
-        var markerCluster = new MarkerClusterer(map, markers, {
-            imagePath: 'https://developers.google.com/maps/documentation/javascript/examples/markerclusterer/m',
-            maxZoom: 15,
-            gridSize: 50
-        });
+        // 마커 클러스터링 - 새 API 사용
+        if (window.markerClusterer && markers.length > 0) {
+            new markerClusterer.MarkerClusterer({
+                map: map,
+                markers: markers,
+                algorithm: new markerClusterer.SuperClusterAlgorithm({
+                    maxZoom: 15,
+                    radius: 50
+                })
+            });
+        }
     """
     
     # 필터 버튼 HTML 생성
@@ -803,7 +864,8 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
                 cursor: pointer;
             }
         </style>
-        <script src="https://developers.google.com/maps/documentation/javascript/examples/markerclusterer/markerclusterer.js"></script>
+        <!-- 최신 마커 클러스터러 라이브러리 로드 -->
+        <script src="https://unpkg.com/@googlemaps/markerclusterer@2.0.9/dist/index.min.js"></script>
     </head>
     <body>
         <div id="map"></div>
@@ -927,7 +989,7 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
                 });
             }
         </script>
-        <script src="https://maps.googleapis.com/maps/api/js?key=""" + api_key + """&callback=initMap&language=""" + language + """" async defer></script>
+        <script src="https://maps.googleapis.com/maps/api/js?key=""" + api_key + """&callback=initMap&language=""" + language + """&loading=async" async defer></script>
     </body>
     </html>
     """
