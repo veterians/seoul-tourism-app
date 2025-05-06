@@ -67,6 +67,75 @@ PLACE_XP = {
 LANGUAGE_CODES = {
     "한국어": "ko",
     "영어": "en", 
+    "중국어": "zh-CN"import streamlit as st
+import pandas as pd
+import json
+import os
+import time
+import random
+from datetime import datetime
+from pathlib import Path
+from geopy.distance import geodesic
+
+# 페이지 설정
+st.set_page_config(
+    page_title="서울 관광앱",
+    page_icon="🗼",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
+
+
+#################################################
+# 상수 및 설정 값
+#################################################
+
+# Google Maps 기본 중심 위치 (서울시청)
+DEFAULT_LOCATION = [37.5665, 126.9780]
+
+# 카테고리별 마커 색상
+CATEGORY_COLORS = {
+    "체육시설": "blue",
+    "공연행사": "purple",
+    "관광기념품": "green",
+    "한국음식점": "orange",
+    "미술관/전시": "pink",
+    "종로구 관광지": "red",
+    "기타": "gray"
+}
+
+# 파일명과 카테고리 매핑
+FILE_CATEGORIES = {
+    "체육시설": ["체육시설", "공연행사"],
+    "관광기념품": ["관광기념품", "외국인전용"],
+    "한국음식점": ["음식점", "한국음식"],
+    "미술관/전시": ["미술관", "전시"],
+    "종로구 관광지": ["종로구", "관광데이터"]
+}
+
+# 세션 데이터 저장 파일
+SESSION_DATA_FILE = "data/session_data.json"
+
+# 경험치 설정
+XP_PER_LEVEL = 200
+PLACE_XP = {
+    "경복궁": 80,
+    "남산서울타워": 65,
+    "동대문 DDP": 35,
+    "명동": 25,
+    "인사동": 40,
+    "창덕궁": 70,
+    "북촌한옥마을": 50,
+    "광장시장": 30,
+    "서울숲": 20,
+    "63빌딩": 45
+}
+
+# 언어 코드 매핑
+LANGUAGE_CODES = {
+    "한국어": "ko",
+    "영어": "en", 
     "중국어": "zh-CN"
 }
 
@@ -337,30 +406,41 @@ def get_location_position():
         
     return DEFAULT_LOCATION  # 기본 위치 (서울시청)
 
-def load_excel_files(language="한국어"):
-    """데이터 폴더에서 모든 Excel 파일 로드"""
+def load_excel_files():
+    """GitHub 저장소의 7개 Excel 파일을 로드"""
     data_folder = Path("asset")
     all_markers = []
     
+    # GitHub 저장소의 7개 Excel 파일 목록
+    excel_files = [
+        "서울시 자랑스러운 한국음식점 정보 한국어영어중국어 1.xlsx",
+        "서울시 종로구 관광데이터 정보 한국어영어 1.xlsx",
+        "서울시 체육시설 공연행사 정보 한국어영어중국어 1.xlsx",
+        "서울시 문화행사 공공서비스예약 정보한국어영어중국어 1.xlsx",
+        "서울시 외국인전용 관광기념품 판매점 정보한국어영어중국어 1.xlsx",
+        "서울시 종로구 관광데이터 정보 중국어 1.xlsx",
+        "서울시립미술관 전시정보 한국어영어중국어 1.xlsx"
+    ]
+    
     if not data_folder.exists():
-        st.warning("데이터 폴더가 존재하지 않습니다.")
-        return []
-        
-    # 모든 Excel 파일 찾기
-    excel_files = list(data_folder.glob("*.xlsx"))
-    
-    if not excel_files:
-        st.warning("데이터 폴더에 Excel 파일이 없습니다.")
+        st.warning(f"데이터 폴더({data_folder})가 존재하지 않습니다.")
         return []
     
-    for file_path in excel_files:
+    for file_name in excel_files:
         try:
+            file_path = data_folder / file_name
+            
+            # 파일이 존재하지 않으면 다음 파일로
+            if not file_path.exists():
+                st.warning(f"파일을 찾을 수 없습니다: {file_name}")
+                continue
+            
             # 파일 카테고리 결정
             file_category = "기타"
-            file_name = file_path.name.lower()
+            file_name_lower = file_name.lower()
             
             for category, keywords in FILE_CATEGORIES.items():
-                if any(keyword.lower() in file_name for keyword in keywords):
+                if any(keyword.lower() in file_name_lower for keyword in keywords):
                     file_category = category
                     break
             
@@ -371,10 +451,10 @@ def load_excel_files(language="한국어"):
             markers = process_dataframe(df, file_category, language)
             all_markers.extend(markers)
             
-            st.success(f"{file_path.name}: {len(markers)}개 마커 로드")
+            st.success(f"{file_name}: {len(markers)}개 마커 로드")
         
         except Exception as e:
-            st.error(f"{file_path.name} 처리 오류: {str(e)}")
+            st.error(f"{file_name} 처리 오류: {str(e)}")
     
     return all_markers
 
@@ -1169,33 +1249,17 @@ def show_map_page():
     # 사용자 위치 가져오기
     user_location = get_location_position()
     
-    # 데이터 로드 컨트롤
-    with st.sidebar:
-        st.header("데이터 관리")
-        
-        # 데이터 로드 버튼
-        if st.button("서울 관광 데이터 로드", use_container_width=True):
-            with st.spinner("데이터를 로드하는 중..."):
-                all_markers = load_excel_files(st.session_state.language)
-                if all_markers:
-                    st.session_state.all_markers = all_markers
-                    st.session_state.markers_loaded = True
-                    st.success(f"총 {len(all_markers)}개의 관광지 로드 완료!")
-                else:
-                    st.warning("데이터를 로드할 수 없습니다.")
-        
-        # 파일 업로드
-        uploaded_files = st.file_uploader(
-            "Excel 파일 업로드 (.xlsx)",
-            type=["xlsx"],
-            accept_multiple_files=True
-        )
-        
-        if uploaded_files:
-            if st.button("업로드한 파일 처리", use_container_width=True):
-                with st.spinner("파일을 처리하는 중..."):
-                    # 파일 처리 로직 (실제 구현 필요)
-                    st.success("파일 업로드 완료!")
+    # 자동으로 Excel 파일 로드 (마커가 아직 로드되지 않은 경우)
+    if not hasattr(st.session_state, 'all_markers') or not st.session_state.all_markers:
+        with st.spinner("서울 관광 데이터를 로드하는 중..."):
+            all_markers = load_excel_files(st.session_state.language)
+            if all_markers:
+                st.session_state.all_markers = all_markers
+                st.session_state.markers_loaded = True
+                st.session_state.tourism_data = all_markers  # 코스 추천을 위해 저장
+                st.success(f"총 {len(all_markers)}개의 관광지 로드 완료!")
+            else:
+                st.warning("관광지 데이터를 로드할 수 없습니다.")
     
     # 내비게이션 모드가 아닌 경우 기본 지도 표시
     if not st.session_state.navigation_active:
@@ -1686,6 +1750,131 @@ def show_course_page():
                     save_session_data()  # 세션 데이터 저장
                     
                     st.success("코스가 저장되었습니다!")
+
+def recommend_courses(data, travel_styles, num_days, include_children=False):
+    """
+    사용자 취향과 일정에 따른 관광 코스 추천 기능
+    """
+    if not data:
+        st.warning("관광지 데이터가 없습니다. 기본 추천 코스를 사용합니다.")
+        # 기본 코스 반환
+        if "역사/문화" in travel_styles:
+            course_type = "문화 코스"
+        elif "쇼핑" in travel_styles:
+            course_type = "쇼핑 코스"
+        elif "자연" in travel_styles:
+            course_type = "자연 코스"
+        else:
+            course_type = "대중적 코스"
+            
+        return RECOMMENDATION_COURSES.get(course_type, []), course_type, []
+    
+    # 장소별 점수 계산
+    scored_places = []
+    
+    for place in data:
+        # 기본 점수는 중요도
+        score = place.get('importance', 1.0)
+        
+        # 여행 스타일에 따른 가중치 적용
+        for style in travel_styles:
+            if style in STYLE_CATEGORY_WEIGHTS:
+                category_weights = STYLE_CATEGORY_WEIGHTS[style]
+                if place['category'] in category_weights:
+                    score *= category_weights[place['category']]
+        
+        # 아이 동반인 경우 가족 친화적인 장소 선호 (미술관/체육시설)
+        if include_children:
+            if place['category'] in ["미술관/전시", "체육시설"]:
+                score *= 1.2
+        
+        # 최종 점수 저장
+        scored_place = place.copy()
+        scored_place['score'] = score
+        scored_places.append(scored_place)
+    
+    # 점수별 정렬
+    scored_places.sort(key=lambda x: x['score'], reverse=True)
+    
+    # 일수에 따른 장소 선택
+    # 하루당 3곳 방문 가정 (아침, 점심, 저녁)
+    places_per_day = 3
+    total_places = num_days * places_per_day
+    
+    # 상위 N개 장소 선택 (N = total_places * 2 for more options)
+    top_places = scored_places[:min(len(scored_places), total_places * 2)]
+    
+    # 동선 최적화: 그리디 알고리즘
+    # 서울시청을 시작점으로 설정 (모든 날 아침에 숙소/시청에서 출발한다고 가정)
+    seoul_city_hall = {"lat": 37.5665, "lng": 126.9780}
+    
+    daily_courses = []
+    
+    for day in range(num_days):
+        daily_course = []
+        current_position = seoul_city_hall
+        
+        # 이미 선택된 장소는 제외
+        available_places = [p for p in top_places if not any(p['title'] == dp['title'] for dc in daily_courses for dp in dc)]
+        
+        if not available_places:
+            break
+        
+        # 각 시간대별 최적 장소 선택
+        for time_slot in range(places_per_day):
+            if not available_places:
+                break
+                
+            # 거리 가중치가 적용된 점수 계산
+            for place in available_places:
+                distance = geodesic(
+                    (current_position['lat'], current_position['lng']), 
+                    (place['lat'], place['lng'])
+                ).kilometers
+                
+                # 거리에 따른 점수 감소 (너무 먼 곳은 피함)
+                distance_factor = max(0.5, 1 - (distance / 10))  # 10km 이상이면 점수 절반으로
+                place['adjusted_score'] = place.get('score', 1.0) * distance_factor
+            
+            # 조정된 점수로 재정렬
+            available_places.sort(key=lambda x: x.get('adjusted_score', 0), reverse=True)
+            
+            # 최고 점수 장소 선택
+            next_place = available_places[0]
+            daily_course.append(next_place)
+            
+            # 선택된 장소 제거
+            available_places.remove(next_place)
+            
+            # 현재 위치 업데이트
+            current_position = {"lat": next_place['lat'], "lng": next_place['lng']}
+        
+        daily_courses.append(daily_course)
+    
+    # 코스 이름 결정
+    if "역사/문화" in travel_styles:
+        course_type = "서울 역사/문화 탐방 코스"
+    elif "쇼핑" in travel_styles and "맛집" in travel_styles:
+        course_type = "서울 쇼핑과 미식 코스"
+    elif "쇼핑" in travel_styles:
+        course_type = "서울 쇼핑 중심 코스"
+    elif "맛집" in travel_styles:
+        course_type = "서울 미식 여행 코스"
+    elif "자연" in travel_styles:
+        course_type = "서울의 자연 코스"
+    elif "활동적인" in travel_styles:
+        course_type = "액티브 서울 코스"
+    else:
+        course_type = "서울 필수 여행 코스"
+    
+    # 추천 장소 이름 목록 생성
+    recommended_places = []
+    for day_course in daily_courses:
+        for place in day_course:
+            recommended_places.append(place['title'])
+    
+    return recommended_places, course_type, daily_courses
+
 
 def show_history_page():
     """관광 이력 페이지 표시"""
