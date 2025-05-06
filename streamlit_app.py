@@ -144,7 +144,8 @@ def display_user_level_info():
     
     col1, col2 = st.columns([1, 4])
     with col1:
-        st.image("https://i.imgur.com/W3UVTgZ.png", width=100)  # 사용자 아이콘
+        main_image_path = Path("asset") / "SeoulTripView.png"
+        st.image(main_image_path, use_container_width=True)
     with col2:
         st.markdown(f"**레벨 {user_level}** ({user_xp} XP)")
         st.progress(xp_percentage / 100)
@@ -1471,7 +1472,8 @@ def show_course_page():
     # AI 추천 아이콘 및 소개
     col1, col2 = st.columns([1, 5])
     with col1:
-        st.image("https://i.imgur.com/8JfVh5H.png", width=80)
+        main_image_path = Path("asset") / "SeoulTripView.png"
+        st.image(main_image_path, use_container_width=True)
     with col2:
         st.markdown("### AI가 추천하는 맞춤 코스")
         st.markdown("여행 일정과 취향을 입력하시면 최적의 관광 코스를 추천해 드립니다.")
@@ -1693,7 +1695,8 @@ def show_history_page():
     col1, col2, col3 = st.columns([1, 3, 1])
     
     with col1:
-        st.image("https://i.imgur.com/W3UVTgZ.png", width=100)  # 사용자 아이콘
+        main_image_path = Path("asset") / "SeoulTripView.png"
+        st.image(main_image_path, use_container_width=True)
     
     with col2:
         st.markdown(f"## 레벨 {user_level}")
