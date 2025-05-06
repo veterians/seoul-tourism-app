@@ -946,6 +946,12 @@ def show_login_page():
     
     with col2:
         page_header(current_lang_texts["app_title"])
+
+        # 메인 이미지
+        st.markdown("<div style='text-align: center;'>", unsafe_allow_html=True)
+        main_image_path = Path("asset") / "SeoulTripView.png"
+        st.image(main_image_path, width=300)
+        st.markdown("</div>", unsafe_allow_html=True)
         
         # 언어 선택 드롭다운
         language_options = {
@@ -964,10 +970,6 @@ def show_login_page():
         if language_options[selected_lang] != st.session_state.language:
             st.session_state.language = language_options[selected_lang]
             st.rerun()  # 언어 변경 후 페이지 새로고침
-        
-        # 메인 이미지
-        main_image_path = Path("asset") / "SeoulTripView.png"
-        st.image(main_image_path, width=300)
         
         # 로그인/회원가입 탭
         tab1, tab2 = st.tabs([current_lang_texts["login_tab"], current_lang_texts["join_tab"]])
