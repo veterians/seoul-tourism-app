@@ -943,8 +943,7 @@ def show_login_page():
     current_lang_texts = texts[st.session_state.language]
 
     # 메인 이미지
-
-    pic1, pic2, pic3 = st.columns([1, 2, 1])
+    pic1, pic2, pic3 = st.columns([1, 10, 1])
 
     with pic2:
         main_image_path = Path("asset") / "SeoulTripView.png"
