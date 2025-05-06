@@ -943,10 +943,32 @@ def show_login_page():
     current_lang_texts = texts[st.session_state.language]
 
     # 메인 이미지
-        st.markdown("<div style='text-align: center;'>", unsafe_allow_html=True)
-        main_image_path = Path("asset") / "SeoulTripView.png"
-        st.image(main_image_path, width=300)
-        st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown(
+        """
+        <style>
+        .center-image {
+            display: flex;
+            justify-content: center;
+        }
+        .center-image > img {
+            max-width: 300px;
+        }
+        </style>
+        """, 
+        unsafe_allow_html=True
+    )    
+
+    main_image_path = Path("asset") / "SeoulTripView.png"
+    st.markdown(
+        f"<div class='center-image'><img src='data:image/png;base64,{get_image_as_base64(main_image_path)}' /></div>", 
+        unsafe_allow_html=True
+    )
+
+    # 이미지를 base64로 변환하는 함수
+    def get_image_as_base64(image_path):
+        import base64
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode('utf-8')
     
     col1, col2, col3 = st.columns([1, 2, 1])
     
