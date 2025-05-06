@@ -7,6 +7,7 @@ import random
 from datetime import datetime
 from pathlib import Path
 from geopy.distance import geodesic
+import numpy as np
 
 # 페이지 설정
 st.set_page_config(
@@ -15,8 +16,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
-
-
 
 #################################################
 # 상수 및 설정 값
@@ -70,13 +69,34 @@ LANGUAGE_CODES = {
     "중국어": "zh-CN"
 }
 
-# 추천 코스 데이터
+# 추천 코스 데이터 (기본값, 실제 데이터가 없을 경우 사용)
 RECOMMENDATION_COURSES = {
     "문화 코스": ["경복궁", "인사동", "창덕궁", "북촌한옥마을"],
     "쇼핑 코스": ["동대문 DDP", "명동", "광장시장", "남산서울타워"],
     "자연 코스": ["서울숲", "남산서울타워", "한강공원", "북한산"],
     "대중적 코스": ["경복궁", "명동", "남산서울타워", "63빌딩"]
 }
+
+# 여행 스타일별 카테고리 가중치
+STYLE_CATEGORY_WEIGHTS = {
+    "활동적인": {"체육시설": 1.5, "공연행사": 1.2, "종로구 관광지": 1.0},
+    "휴양": {"미술관/전시": 1.3, "한국음식점": 1.2, "종로구 관광지": 1.0},
+    "맛집": {"한국음식점": 2.0, "관광기념품": 1.0, "종로구 관광지": 0.8},
+    "쇼핑": {"관광기념품": 2.0, "한국음식점": 1.0, "종로구 관광지": 0.8},
+    "역사/문화": {"종로구 관광지": 1.5, "미술관/전시": 1.3, "공연행사": 1.2},
+    "자연": {"종로구 관광지": 1.5, "체육시설": 1.0, "한국음식점": 0.8}
+}
+
+# 명시적으로 로드할 7개 파일 리스트
+EXCEL_FILES = [
+    "서울시 자랑스러운 한국음식점 정보 한국어영어중국어 1.xlsx",
+    "서울시 종로구 관광데이터 정보 한국어영어 1.xlsx",
+    "서울시 체육시설 공연행사 정보 한국어영어중국어 1.xlsx",
+    "서울시 문화행사 공공서비스예약 정보한국어영어중국어 1.xlsx",
+    "서울시 외국인전용 관광기념품 판매점 정보한국어영어중국어 1.xlsx",
+    "서울시 종로구 관광데이터 정보 중국어 1.xlsx",
+    "서울시립미술관 전시정보 한국어영어중국어 1.xlsx"
+]
 
 #################################################
 # 유틸리티 함수
@@ -145,7 +165,10 @@ def display_user_level_info():
     col1, col2 = st.columns([1, 4])
     with col1:
         main_image_path = Path("asset") / "SeoulTripView.png"
-        st.image(main_image_path, use_container_width=True)
+        if main_image_path.exists():
+            st.image(main_image_path, use_container_width=True)
+        else:
+            st.info("이미지를 찾을 수 없습니다: asset/SeoulTripView.png")
     with col2:
         st.markdown(f"**레벨 {user_level}** ({user_xp} XP)")
         st.progress(xp_percentage / 100)
@@ -226,6 +249,16 @@ def init_session_state():
         st.session_state.navigation_destination = None
     if 'transport_mode' not in st.session_state:
         st.session_state.transport_mode = None
+    
+    # 관광 데이터 관련 상태
+    if 'all_markers' not in st.session_state:
+        st.session_state.all_markers = []
+    if 'markers_loaded' not in st.session_state:
+        st.session_state.markers_loaded = False
+    if 'tourism_data' not in st.session_state:
+        st.session_state.tourism_data = []
+    if 'saved_courses' not in st.session_state:
+        st.session_state.saved_courses = []
         
     # Google Maps API 키
     if "google_maps_api_key" not in st.session_state:
@@ -233,7 +266,8 @@ def init_session_state():
         try:
             st.session_state.google_maps_api_key = st.secrets["google_maps_api_key"]
         except:
-            st.session_state.google_maps_api_key = ""
+            # 기본값 설정 (실제 사용시 자신의 API 키로 변경 필요)
+            st.session_state.google_maps_api_key = "YOUR_GOOGLE_MAPS_API_KEY"
     
     # 저장된 세션 데이터 로드
     load_session_data()
@@ -248,9 +282,10 @@ def load_session_data():
                 st.session_state.users = data.get("users", {"admin": "admin"})
                 st.session_state.user_visits = data.get("user_visits", {})
                 st.session_state.user_xp = data.get("user_xp", {})
+                st.session_state.saved_courses = data.get("saved_courses", [])
                 return True
     except Exception as e:
-        print(f"세션 데이터 로드 오류: {e}")
+        st.error(f"세션 데이터 로드 오류: {e}")
     return False
 
 def save_session_data():
@@ -262,14 +297,15 @@ def save_session_data():
         data = {
             "users": st.session_state.users,
             "user_visits": st.session_state.user_visits,
-            "user_xp": st.session_state.user_xp
+            "user_xp": st.session_state.user_xp,
+            "saved_courses": st.session_state.saved_courses
         }
         
         with open(SESSION_DATA_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         return True
     except Exception as e:
-        print(f"세션 데이터 저장 오류: {e}")
+        st.error(f"세션 데이터 저장 오류: {e}")
         return False
 
 def calculate_level(xp):
@@ -337,45 +373,51 @@ def get_location_position():
         
     return DEFAULT_LOCATION  # 기본 위치 (서울시청)
 
+#################################################
+# 데이터 로드 함수
+#################################################
+
 def load_excel_files(language="한국어"):
-    """데이터 폴더에서 지정된 Excel 파일 로드"""
+    """명시적으로 지정된 7개의 Excel 파일 로드"""
     data_folder = Path("asset")
     all_markers = []
     
-    # 명시적으로 로드할 7개 파일 지정
-    excel_files = [
-        "서울시 자랑스러운 한국음식점 정보 한국어영어중국어 1.xlsx",
-        "서울시 종로구 관광데이터 정보 한국어영어 1.xlsx",
-        "서울시 체육시설 공연행사 정보 한국어영어중국어 1.xlsx",
-        "서울시 문화행사 공공서비스예약 정보한국어영어중국어 1.xlsx",
-        "서울시 외국인전용 관광기념품 판매점 정보한국어영어중국어 1.xlsx",
-        "서울시 종로구 관광데이터 정보 중국어 1.xlsx",
-        "서울시립미술관 전시정보 한국어영어중국어 1.xlsx"
-    ]
-    
+    # 데이터 폴더 존재 확인 및 생성
     if not data_folder.exists():
         st.warning(f"데이터 폴더({data_folder})가 존재하지 않습니다. 폴더를 생성합니다.")
         data_folder.mkdir(parents=True, exist_ok=True)
     
     # 파일 하나라도 존재하는지 확인
     files_exist = False
-    for file_name in excel_files:
+    for file_name in EXCEL_FILES:
         if (data_folder / file_name).exists():
             files_exist = True
             break
     
     if not files_exist:
-        st.error("지정된 Excel 파일이 하나도 존재하지 않습니다. asset 폴더에 파일을 추가해주세요.")
+        st.error("""
+        지정된 Excel 파일이 하나도 존재하지 않습니다. 
+        다음 파일들을 asset 폴더에 추가해주세요:
+        - 서울시 자랑스러운 한국음식점 정보 한국어영어중국어 1.xlsx
+        - 서울시 종로구 관광데이터 정보 한국어영어 1.xlsx
+        - 서울시 체육시설 공연행사 정보 한국어영어중국어 1.xlsx
+        - 서울시 문화행사 공공서비스예약 정보한국어영어중국어 1.xlsx
+        - 서울시 외국인전용 관광기념품 판매점 정보한국어영어중국어 1.xlsx
+        - 서울시 종로구 관광데이터 정보 중국어 1.xlsx
+        - 서울시립미술관 전시정보 한국어영어중국어 1.xlsx
+        """)
         return []
     
     # 각 파일 처리
-    for file_name in excel_files:
+    loaded_files = 0
+    total_markers = 0
+    
+    for file_name in EXCEL_FILES:
         try:
             file_path = data_folder / file_name
             
             # 파일이 존재하지 않으면 건너뛰기
             if not file_path.exists():
-                st.warning(f"파일을 찾을 수 없습니다: {file_name}")
                 continue
             
             # 파일 카테고리 결정
@@ -394,17 +436,20 @@ def load_excel_files(language="한국어"):
             markers = process_dataframe(df, file_category, language)
             all_markers.extend(markers)
             
-            if len(markers) > 0:
-                st.success(f"{file_name}: {len(markers)}개 마커 로드")
-            else:
-                st.warning(f"{file_name}: 유효한 마커 데이터가 없습니다.")
+            loaded_files += 1
+            total_markers += len(markers)
             
         except Exception as e:
             st.error(f"{file_name} 처리 오류: {str(e)}")
     
+    if loaded_files > 0:
+        st.success(f"{loaded_files}개 파일에서 총 {total_markers}개의 마커를 로드했습니다.")
+    else:
+        st.warning("유효한 마커 데이터가 없습니다.")
+    
     return all_markers
 
-def process_dataframe(df, category):
+def process_dataframe(df, category, language="한국어"):
     """데이터프레임을 Google Maps 마커 형식으로 변환"""
     markers = []
     
@@ -430,6 +475,15 @@ def process_dataframe(df, category):
         if '名称' in df.columns:
             name_col = '名称'
     
+    # 기본 명칭 열이 없을 경우 대체 열 찾기
+    if name_col not in df.columns:
+        alternate_cols = [col for col in df.columns if '명칭' in col or '이름' in col or 'name' in col.lower() or '名称' in col]
+        if alternate_cols:
+            name_col = alternate_cols[0]
+        else:
+            st.warning(f"'{category}' 데이터에 적절한 명칭 열이 없습니다.")
+            return []
+    
     # 주소 열 결정
     address_col = None
     address_candidates = ['주소(한국어)', '주소', '소재지', '도로명주소', '지번주소']
@@ -448,6 +502,23 @@ def process_dataframe(df, category):
     valid_coords = (df['X좌표'] >= 124) & (df['X좌표'] <= 132) & (df['Y좌표'] >= 33) & (df['Y좌표'] <= 43)
     df = df[valid_coords]
     
+    # 중요도 점수 계산 (코스 추천에 활용)
+    df['importance_score'] = 1.0  # 기본 점수
+    
+    if '입장료' in df.columns:
+        # 입장료가 있는 곳은 관광 명소일 가능성이 높음
+        df.loc[df['입장료'].notna(), 'importance_score'] += 0.5
+        
+    if '이용시간' in df.columns or '운영시간' in df.columns:
+        # 운영시간 정보가 있는 곳은 주요 장소일 가능성이 높음
+        time_col = '이용시간' if '이용시간' in df.columns else '운영시간'
+        df.loc[df[time_col].notna(), 'importance_score'] += 0.3
+        
+    if '전화번호' in df.columns or 'TELNO' in df.columns:
+        # 전화번호가 있는 곳은 체계적인 장소일 가능성이 높음
+        tel_col = '전화번호' if '전화번호' in df.columns else 'TELNO'
+        df.loc[df[tel_col].notna(), 'importance_score'] += 0.2
+    
     # 마커 색상 결정
     color = CATEGORY_COLORS.get(category, "gray")
     
@@ -455,7 +526,11 @@ def process_dataframe(df, category):
     for _, row in df.iterrows():
         try:
             # 기본 정보
-            name = row[name_col] if name_col in row and pd.notna(row[name_col]) else "이름 없음"
+            if name_col in row and pd.notna(row[name_col]):
+                name = row[name_col]
+            else:
+                name = "이름 없음"
+                
             lat = float(row['Y좌표'])
             lng = float(row['X좌표'])
             
@@ -475,6 +550,18 @@ def process_dataframe(df, category):
                     info += f"전화: {row[tel_col]}<br>"
                     break
             
+            # 운영시간 (있는 경우)
+            for time_col in ['이용시간', '운영시간', 'OPENHOUR']:
+                if time_col in row and pd.notna(row[time_col]):
+                    info += f"운영시간: {row[time_col]}<br>"
+                    break
+            
+            # 입장료 (있는 경우)
+            for fee_col in ['입장료', '이용요금', 'FEE']:
+                if fee_col in row and pd.notna(row[fee_col]):
+                    info += f"입장료: {row[fee_col]}<br>"
+                    break
+            
             # 마커 생성
             marker = {
                 'lat': lat,
@@ -482,7 +569,9 @@ def process_dataframe(df, category):
                 'title': name,
                 'color': color,
                 'category': category,
-                'info': info
+                'info': info,
+                'address': address,
+                'importance': row.get('importance_score', 1.0)  # 중요도 점수 추가
             }
             markers.append(marker)
             
@@ -534,8 +623,8 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
         
         # 마커 아이콘 URL
         icon_url = "http://maps.google.com/mapfiles/ms/icons/" + color + "-dot.png"
-        
-        # 정보창 HTML 내용
+
+	# 정보창 HTML 내용
         info_content = """
             <div style="padding: 10px; max-width: 300px;">
                 <h3 style="margin-top: 0; color: #1976D2;">{0}</h3>
@@ -630,7 +719,7 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
     for cat in categories.keys():
         filter_buttons += ' <button id="filter-' + cat + '" class="filter-button" onclick="filterMarkers(\'' + cat + '\')">' + cat + '</button>'
     
-    # 전체 HTML 코드 생성 - 문자열 결합으로 f-string 대신 사용
+    # 전체 HTML 코드 생성
     html = """
     <!DOCTYPE html>
     <html>
@@ -891,8 +980,137 @@ def display_visits(visits):
                         st.session_state.rating_index = i
 
 #################################################
+# 개선된 관광 코스 추천 함수
+#################################################
+
+def recommend_courses(data, travel_styles, num_days, include_children=False):
+    """
+    사용자 취향과 일정에 따른 관광 코스 추천 기능
+    """
+    if not data:
+        st.warning("관광지 데이터가 없습니다. 기본 추천 코스를 사용합니다.")
+        # 기본 코스 반환
+        if "역사/문화" in travel_styles:
+            course_type = "문화 코스"
+        elif "쇼핑" in travel_styles:
+            course_type = "쇼핑 코스"
+        elif "자연" in travel_styles:
+            course_type = "자연 코스"
+        else:
+            course_type = "대중적 코스"
+            
+        return RECOMMENDATION_COURSES.get(course_type, []), course_type, []
+    
+    # 장소별 점수 계산
+    scored_places = []
+    
+    for place in data:
+        # 기본 점수는 중요도
+        score = place.get('importance', 1.0)
+        
+        # 여행 스타일에 따른 가중치 적용
+        for style in travel_styles:
+            if style in STYLE_CATEGORY_WEIGHTS:
+                category_weights = STYLE_CATEGORY_WEIGHTS[style]
+                if place['category'] in category_weights:
+                    score *= category_weights[place['category']]
+        
+        # 아이 동반인 경우 가족 친화적인 장소 선호 (미술관/체육시설)
+        if include_children:
+            if place['category'] in ["미술관/전시", "체육시설"]:
+                score *= 1.2
+        
+        # 최종 점수 저장
+        scored_place = place.copy()
+        scored_place['score'] = score
+        scored_places.append(scored_place)
+    
+    # 점수별 정렬
+    scored_places.sort(key=lambda x: x['score'], reverse=True)
+    
+    # 일수에 따른 장소 선택
+    # 하루당 3곳 방문 가정 (아침, 점심, 저녁)
+    places_per_day = 3
+    total_places = num_days * places_per_day
+    
+    # 상위 N개 장소 선택 (N = total_places * 2 for more options)
+    top_places = scored_places[:min(len(scored_places), total_places * 2)]
+    
+    # 동선 최적화: 그리디 알고리즘
+    # 서울시청을 시작점으로 설정 (모든 날 아침에 숙소/시청에서 출발한다고 가정)
+    seoul_city_hall = {"lat": 37.5665, "lng": 126.9780}
+    
+    daily_courses = []
+    
+    for day in range(num_days):
+        daily_course = []
+        current_position = seoul_city_hall
+        
+        # 이미 선택된 장소는 제외
+        available_places = [p for p in top_places if not any(p['title'] == dp['title'] for dc in daily_courses for dp in dc)]
+        
+        if not available_places:
+            break
+        
+        # 각 시간대별 최적 장소 선택
+        for time_slot in range(places_per_day):
+            if not available_places:
+                break
+                
+            # 거리 가중치가 적용된 점수 계산
+            for place in available_places:
+                distance = geodesic(
+                    (current_position['lat'], current_position['lng']), 
+                    (place['lat'], place['lng'])
+                ).kilometers
+                
+                # 거리에 따른 점수 감소 (너무 먼 곳은 피함)
+                distance_factor = max(0.5, 1 - (distance / 10))  # 10km 이상이면 점수 절반으로
+                place['adjusted_score'] = place.get('score', 1.0) * distance_factor
+            
+            # 조정된 점수로 재정렬
+            available_places.sort(key=lambda x: x.get('adjusted_score', 0), reverse=True)
+            
+            # 최고 점수 장소 선택
+            next_place = available_places[0]
+            daily_course.append(next_place)
+            
+            # 선택된 장소 제거
+            available_places.remove(next_place)
+            
+            # 현재 위치 업데이트
+            current_position = {"lat": next_place['lat'], "lng": next_place['lng']}
+        
+        daily_courses.append(daily_course)
+    
+    # 코스 이름 결정
+    if "역사/문화" in travel_styles:
+        course_type = "서울 역사/문화 탐방 코스"
+    elif "쇼핑" in travel_styles and "맛집" in travel_styles:
+        course_type = "서울 쇼핑과 미식 코스"
+    elif "쇼핑" in travel_styles:
+        course_type = "서울 쇼핑 중심 코스"
+    elif "맛집" in travel_styles:
+        course_type = "서울 미식 여행 코스"
+    elif "자연" in travel_styles:
+        course_type = "서울의 자연 코스"
+    elif "활동적인" in travel_styles:
+        course_type = "액티브 서울 코스"
+    else:
+        course_type = "서울 필수 여행 코스"
+    
+    # 추천 장소 이름 목록 생성
+    recommended_places = []
+    for day_course in daily_courses:
+        for place in day_course:
+            recommended_places.append(place['title'])
+    
+    return recommended_places, course_type, daily_courses
+
+#################################################
 # 페이지 함수
 #################################################
+
 def show_login_page():
     """로그인 페이지 표시"""
     # 언어 설정 초기화
@@ -974,7 +1192,10 @@ def show_login_page():
 
     with pic3:
         main_image_path = Path("asset") / "SeoulTripView.png"
-        st.image(main_image_path, use_container_width=True)
+        if main_image_path.exists():
+            st.image(main_image_path, use_container_width=True)
+        else:
+            st.info("이미지를 찾을 수 없습니다: asset/SeoulTripView.png")
     
     col1, col2, col3 = st.columns([1, 2, 1])
     
@@ -1042,59 +1263,6 @@ def show_login_page():
                     st.rerun()
                 else:
                     st.warning(current_lang_texts["user_exists"])
-
-
-# def show_login_page():
-#     """로그인 페이지 표시"""
-#     col1, col2, col3 = st.columns([1, 2, 1])
-    
-#     with col2:
-#         page_header("서울 관광앱")
-# #       st.image("https://github.com/veterians/seoul-tourism-app/blob/main/asset/SeoulTripView.png", width=300)
-#         main_image_path = Path("asset") / "SeoulTripView.png"
-#         st.image(main_image_path, width=300)
-        
-#         tab1, tab2 = st.tabs(["Login", "Join"])
-
-#         with tab1:
-#             st.markdown("### Login")
-#             username = st.text_input("ID", key="login_username")
-#             password = st.text_input("PW", type="password", key="login_password")
-#             col1, col2 = st.columns([1,1])
-#             with col1:
-#                 remember = st.checkbox("아이디 저장")
-#             with col2:
-#                 st.markdown("")  # 빈 공간
-            
-#             if st.button("Login", use_container_width=True):
-#                 if authenticate_user(username, password):
-#                     st.success("🎉 로그인 성공!")
-#                     st.session_state.logged_in = True
-#                     st.session_state.username = username
-#                     change_page("menu")
-#                     st.rerun()
-#                 else:
-#                     st.error("❌ 아이디 또는 비밀번호가 올바르지 않습니다.")
-
-#         with tab2:
-#             st.markdown("### Join")
-#             new_user = st.text_input("새 아이디", key="register_username")
-#             new_pw = st.text_input("새 비밀번호", type="password", key="register_password")
-#             new_pw_confirm = st.text_input("비밀번호 확인", type="password", key="register_password_confirm")
-            
-#             if st.button("Join", use_container_width=True):
-#                 if not new_user or not new_pw:
-#                     st.error("아이디와 비밀번호를 입력해주세요.")
-#                 elif new_pw != new_pw_confirm:
-#                     st.error("비밀번호와 비밀번호 확인이 일치하지 않습니다.")
-#                 elif register_user(new_user, new_pw):
-#                     st.success("✅ 회원가입 완료!")
-#                     st.session_state.logged_in = True
-#                     st.session_state.username = new_user
-#                     change_page("menu")
-#                     st.rerun()
-#                 else:
-#                     st.warning("⚠️ 이미 존재하는 아이디입니다.")
 
 def show_menu_page():
     """메인 메뉴 페이지 표시"""
@@ -1166,7 +1334,7 @@ def show_map_page():
     
     # API 키 확인
     api_key = st.session_state.google_maps_api_key
-    if not api_key:
+    if not api_key or api_key == "YOUR_GOOGLE_MAPS_API_KEY":
         st.error("Google Maps API 키가 설정되지 않았습니다.")
         api_key = st.text_input("Google Maps API 키를 입력하세요", type="password")
         if api_key:
@@ -1195,44 +1363,17 @@ def show_map_page():
     # 사용자 위치 가져오기
     user_location = get_location_position()
     
-    # 자동으로 Excel 파일 로드 (매번 새로 로드)
-    with st.spinner("서울 관광 데이터를 로드하는 중..."):
-        all_markers = load_excel_files(st.session_state.language)
-        if all_markers:
-            st.session_state.all_markers = all_markers
-            st.session_state.markers_loaded = True
-            st.session_state.tourism_data = all_markers  # 코스 추천을 위해 저장
-            st.success(f"총 {len(all_markers)}개의 관광지 로드 완료!")
-        else:
-            st.warning("관광지 데이터를 로드할 수 없습니다.")
-    
-    # 데이터 관리 사이드바
-    with st.sidebar:
-        st.header("데이터 관리")
-        
-        # 데이터 새로고침 버튼
-        if st.button("데이터 새로고침", use_container_width=True):
-            with st.spinner("데이터를 다시 로드하는 중..."):
-                all_markers = load_excel_files(st.session_state.language)
-                if all_markers:
-                    st.session_state.all_markers = all_markers
-                    st.session_state.markers_loaded = True
-                    st.success(f"총 {len(all_markers)}개의 관광지 로드 완료!")
-                else:
-                    st.warning("데이터를 로드할 수 없습니다.")
-        
-        # 파일 업로드
-        uploaded_files = st.file_uploader(
-            "Excel 파일 업로드 (.xlsx)",
-            type=["xlsx"],
-            accept_multiple_files=True
-        )
-        
-        if uploaded_files:
-            if st.button("업로드한 파일 처리", use_container_width=True):
-                with st.spinner("파일을 처리하는 중..."):
-                    # 파일 처리 로직 (실제 구현 필요)
-                    st.success("파일 업로드 완료!")
+    # 자동으로 Excel 파일 로드 (아직 로드되지 않은 경우)
+    if not st.session_state.markers_loaded or not st.session_state.all_markers:
+        with st.spinner("서울 관광 데이터를 로드하는 중..."):
+            all_markers = load_excel_files(st.session_state.language)
+            if all_markers:
+                st.session_state.all_markers = all_markers
+                st.session_state.markers_loaded = True
+                st.session_state.tourism_data = all_markers  # 코스 추천을 위해 저장
+                st.success(f"총 {len(all_markers)}개의 관광지 로드 완료!")
+            else:
+                st.warning("관광지 데이터를 로드할 수 없습니다.")
     
     # 내비게이션 모드가 아닌 경우 기본 지도 표시
     if not st.session_state.navigation_active:
@@ -1253,7 +1394,7 @@ def show_map_page():
             })
             
             # 로드된 데이터 마커 추가
-            if hasattr(st.session_state, 'all_markers') and st.session_state.all_markers:
+            if st.session_state.all_markers:
                 markers.extend(st.session_state.all_markers)
                 st.success(f"지도에 {len(st.session_state.all_markers)}개의 장소를 표시했습니다.")
             
@@ -1273,7 +1414,7 @@ def show_map_page():
             
             # 검색 기능
             search_term = st.text_input("장소 검색")
-            if search_term and hasattr(st.session_state, 'all_markers') and st.session_state.all_markers:
+            if search_term and st.session_state.all_markers:
                 search_results = [m for m in st.session_state.all_markers 
                                  if search_term.lower() in m['title'].lower()]
                 
@@ -1313,7 +1454,7 @@ def show_map_page():
                     st.info(f"'{search_term}'에 대한 검색 결과가 없습니다.")
             
             # 카테고리별 통계
-            if hasattr(st.session_state, 'all_markers') and st.session_state.all_markers:
+            if st.session_state.all_markers:
                 st.subheader("카테고리별 장소")
                 categories = {}
                 for m in st.session_state.all_markers:
@@ -1506,11 +1647,26 @@ def show_course_page():
         change_page("menu")
         st.rerun()
     
+    # 자동으로 데이터 로드 (아직 로드되지 않은 경우)
+    if not st.session_state.markers_loaded or not st.session_state.all_markers:
+        with st.spinner("서울 관광 데이터를 로드하는 중..."):
+            all_markers = load_excel_files(st.session_state.language)
+            if all_markers:
+                st.session_state.all_markers = all_markers
+                st.session_state.markers_loaded = True
+                st.session_state.tourism_data = all_markers
+                st.success(f"총 {len(all_markers)}개의 관광지 로드 완료!")
+            else:
+                st.warning("관광지 데이터를 로드할 수 없습니다.")
+    
     # AI 추천 아이콘 및 소개
     col1, col2 = st.columns([1, 5])
     with col1:
         main_image_path = Path("asset") / "SeoulTripView.png"
-        st.image(main_image_path, use_container_width=True)
+        if main_image_path.exists():
+            st.image(main_image_path, use_container_width=True)
+        else:
+            st.info("이미지를 찾을 수 없습니다: asset/SeoulTripView.png")
     with col2:
         st.markdown("### AI가 추천하는 맞춤 코스")
         st.markdown("여행 일정과 취향을 입력하시면 최적의 관광 코스를 추천해 드립니다.")
@@ -1561,17 +1717,6 @@ def show_course_page():
             st.warning("최소 하나 이상의 여행 스타일을 선택해주세요.")
         else:
             with st.spinner("최적의 관광 코스를 생성 중입니다..."):
-                # 데이터 확인
-                if not hasattr(st.session_state, 'all_markers') or not st.session_state.all_markers:
-                    # 데이터가 없으면 로드 시도
-                    with st.spinner("관광지 데이터를 로드하는 중..."):
-                        all_markers = load_excel_files(st.session_state.language)
-                        if all_markers:
-                            st.session_state.all_markers = all_markers
-                            st.session_state.tourism_data = all_markers
-                        else:
-                            st.warning("관광지 데이터가 없습니다. 기본 추천 코스를 사용합니다.")
-                
                 # 코스 추천 실행
                 recommended_places, course_type, daily_courses = recommend_courses(
                     st.session_state.all_markers if hasattr(st.session_state, 'all_markers') else [],
@@ -1649,7 +1794,7 @@ def show_course_page():
                 
                 # API 키 확인
                 api_key = st.session_state.google_maps_api_key
-                if not api_key:
+                if not api_key or api_key == "YOUR_GOOGLE_MAPS_API_KEY":
                     st.error("Google Maps API 키가 설정되지 않았습니다.")
                     api_key = st.text_input("Google Maps API 키를 입력하세요", type="password")
                     if api_key:
@@ -1724,131 +1869,6 @@ def show_course_page():
                     
                     st.success("코스가 저장되었습니다!")
 
-def recommend_courses(data, travel_styles, num_days, include_children=False):
-    """
-    사용자 취향과 일정에 따른 관광 코스 추천 기능
-    """
-    if not data:
-        st.warning("관광지 데이터가 없습니다. 기본 추천 코스를 사용합니다.")
-        # 기본 코스 반환
-        if "역사/문화" in travel_styles:
-            course_type = "문화 코스"
-        elif "쇼핑" in travel_styles:
-            course_type = "쇼핑 코스"
-        elif "자연" in travel_styles:
-            course_type = "자연 코스"
-        else:
-            course_type = "대중적 코스"
-            
-        return RECOMMENDATION_COURSES.get(course_type, []), course_type, []
-    
-    # 장소별 점수 계산
-    scored_places = []
-    
-    for place in data:
-        # 기본 점수는 중요도
-        score = place.get('importance', 1.0)
-        
-        # 여행 스타일에 따른 가중치 적용
-        for style in travel_styles:
-            if style in STYLE_CATEGORY_WEIGHTS:
-                category_weights = STYLE_CATEGORY_WEIGHTS[style]
-                if place['category'] in category_weights:
-                    score *= category_weights[place['category']]
-        
-        # 아이 동반인 경우 가족 친화적인 장소 선호 (미술관/체육시설)
-        if include_children:
-            if place['category'] in ["미술관/전시", "체육시설"]:
-                score *= 1.2
-        
-        # 최종 점수 저장
-        scored_place = place.copy()
-        scored_place['score'] = score
-        scored_places.append(scored_place)
-    
-    # 점수별 정렬
-    scored_places.sort(key=lambda x: x['score'], reverse=True)
-    
-    # 일수에 따른 장소 선택
-    # 하루당 3곳 방문 가정 (아침, 점심, 저녁)
-    places_per_day = 3
-    total_places = num_days * places_per_day
-    
-    # 상위 N개 장소 선택 (N = total_places * 2 for more options)
-    top_places = scored_places[:min(len(scored_places), total_places * 2)]
-    
-    # 동선 최적화: 그리디 알고리즘
-    # 서울시청을 시작점으로 설정 (모든 날 아침에 숙소/시청에서 출발한다고 가정)
-    seoul_city_hall = {"lat": 37.5665, "lng": 126.9780}
-    
-    daily_courses = []
-    
-    for day in range(num_days):
-        daily_course = []
-        current_position = seoul_city_hall
-        
-        # 이미 선택된 장소는 제외
-        available_places = [p for p in top_places if not any(p['title'] == dp['title'] for dc in daily_courses for dp in dc)]
-        
-        if not available_places:
-            break
-        
-        # 각 시간대별 최적 장소 선택
-        for time_slot in range(places_per_day):
-            if not available_places:
-                break
-                
-            # 거리 가중치가 적용된 점수 계산
-            for place in available_places:
-                distance = geodesic(
-                    (current_position['lat'], current_position['lng']), 
-                    (place['lat'], place['lng'])
-                ).kilometers
-                
-                # 거리에 따른 점수 감소 (너무 먼 곳은 피함)
-                distance_factor = max(0.5, 1 - (distance / 10))  # 10km 이상이면 점수 절반으로
-                place['adjusted_score'] = place.get('score', 1.0) * distance_factor
-            
-            # 조정된 점수로 재정렬
-            available_places.sort(key=lambda x: x.get('adjusted_score', 0), reverse=True)
-            
-            # 최고 점수 장소 선택
-            next_place = available_places[0]
-            daily_course.append(next_place)
-            
-            # 선택된 장소 제거
-            available_places.remove(next_place)
-            
-            # 현재 위치 업데이트
-            current_position = {"lat": next_place['lat'], "lng": next_place['lng']}
-        
-        daily_courses.append(daily_course)
-    
-    # 코스 이름 결정
-    if "역사/문화" in travel_styles:
-        course_type = "서울 역사/문화 탐방 코스"
-    elif "쇼핑" in travel_styles and "맛집" in travel_styles:
-        course_type = "서울 쇼핑과 미식 코스"
-    elif "쇼핑" in travel_styles:
-        course_type = "서울 쇼핑 중심 코스"
-    elif "맛집" in travel_styles:
-        course_type = "서울 미식 여행 코스"
-    elif "자연" in travel_styles:
-        course_type = "서울의 자연 코스"
-    elif "활동적인" in travel_styles:
-        course_type = "액티브 서울 코스"
-    else:
-        course_type = "서울 필수 여행 코스"
-    
-    # 추천 장소 이름 목록 생성
-    recommended_places = []
-    for day_course in daily_courses:
-        for place in day_course:
-            recommended_places.append(place['title'])
-    
-    return recommended_places, course_type, daily_courses
-
-
 def show_history_page():
     """관광 이력 페이지 표시"""
     page_header("나의 관광 이력")
@@ -1869,7 +1889,10 @@ def show_history_page():
     
     with col1:
         main_image_path = Path("asset") / "SeoulTripView.png"
-        st.image(main_image_path, use_container_width=True)
+        if main_image_path.exists():
+            st.image(main_image_path, use_container_width=True)
+        else:
+            st.info("이미지를 찾을 수 없습니다: asset/SeoulTripView.png")
     
     with col2:
         st.markdown(f"## 레벨 {user_level}")
@@ -1922,13 +1945,17 @@ def show_history_page():
         st.markdown("---")
         st.subheader("🗺️ 방문 지도")
         
-        # 필요한 경우 API 키 확인
+        # API 키 확인
         api_key = st.session_state.google_maps_api_key
-        if not api_key:
+        if not api_key or api_key == "YOUR_GOOGLE_MAPS_API_KEY":
             st.error("Google Maps API 키가 설정되지 않았습니다.")
             api_key = st.text_input("Google Maps API 키를 입력하세요", type="password")
             if api_key:
                 st.session_state.google_maps_api_key = api_key
+                st.success("API 키가 설정되었습니다.")
+            else:
+                st.info("Google Maps를 사용하려면 API 키가 필요합니다.")
+                return
         
         # 방문 장소 마커 생성
         visit_markers = []
@@ -2015,6 +2042,11 @@ def show_history_page():
 data_folder = Path("data")
 if not data_folder.exists():
     data_folder.mkdir(parents=True, exist_ok=True)
+
+# asset 폴더 생성 (없는 경우)
+asset_folder = Path("asset")
+if not asset_folder.exists():
+    asset_folder.mkdir(parents=True, exist_ok=True)
 
 # CSS 스타일 적용
 apply_custom_css()
