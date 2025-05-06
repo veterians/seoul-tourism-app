@@ -941,18 +941,18 @@ def show_login_page():
     
     # 현재 선택된 언어에 따른 텍스트 가져오기
     current_lang_texts = texts[st.session_state.language]
+
+    # 메인 이미지
+        st.markdown("<div style='text-align: center;'>", unsafe_allow_html=True)
+        main_image_path = Path("asset") / "SeoulTripView.png"
+        st.image(main_image_path, width=300)
+        st.markdown("</div>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 2, 1])
     
     with col2:
         page_header(current_lang_texts["app_title"])
 
-        # 메인 이미지
-        st.markdown("<div style='text-align: center;'>", unsafe_allow_html=True)
-        main_image_path = Path("asset") / "SeoulTripView.png"
-        st.image(main_image_path, width=300)
-        st.markdown("</div>", unsafe_allow_html=True)
-        
         # 언어 선택 드롭다운
         language_options = {
             "🇰🇷 한국어": "한국어",
