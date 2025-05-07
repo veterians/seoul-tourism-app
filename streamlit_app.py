@@ -1527,81 +1527,112 @@ def show_map_page():
                 
                 st.markdown(f"### {transport_icons[transport_mode]} {transport_names[transport_mode]} 경로")
                 
-                # Google Maps URL 생성
-                maps_url = (f"https://www.google.com/maps/dir/?api=1"
-                           f"&origin={user_lat},{user_lng}"
-                           f"&destination={dest_lat},{dest_lng}"
-                           f"&travelmode={transport_mode}")
+                # 내비게이션 UI
+                nav_col, info_col = st.columns([2, 1])
                 
-                # 정보 표시
-                st.markdown("### 경로 정보")
-                st.markdown(f"**{destination['name']}까지**")
-                st.markdown(f"- 직선 거리: {distance:.0f}m")
-                st.markdown(f"- 이동 수단: {transport_names[transport_mode]}")
+                with nav_col:
+                    # 마커 데이터 준비 (출발지와 목적지)
+                    markers = [
+                        {
+                            'lat': user_lat, 
+                            'lng': user_lng, 
+                            'title': '내 위치', 
+                            'color': 'blue', 
+                            'info': '출발 지점',
+                            'category': '내 위치'
+                        },
+                        {
+                            'lat': dest_lat, 
+                            'lng': dest_lng, 
+                            'title': destination["name"], 
+                            'color': 'red', 
+                            'info': f'목적지: {destination["name"]}',
+                            'category': '목적지'
+                        }
+                    ]
+                    
+                    # 지도 표시 (기존과 동일)
+                    show_google_map(
+                        api_key=api_key,
+                        center_lat=(user_lat + dest_lat) / 2,  # 중간 지점
+                        center_lng=(user_lng + dest_lng) / 2,
+                        markers=markers,
+                        zoom=14,
+                        height=600,
+                        language=st.session_state.language
+                    )
                 
-                # Google Maps 링크 버튼
-                st.markdown("### Google Maps 내비게이션")
-                st.info("아래 버튼을 클릭하면 Google Maps 내비게이션이 새 탭에서 열립니다. 모바일에서는 Google Maps 앱이 실행됩니다.")
-                
-                if st.button("🗺️ Google Maps 내비게이션 시작", use_container_width=True):
-                    # JavaScript로 새 탭에서 링크 열기
-                    js = f"""
-                    <script>
-                        window.open('{maps_url}', '_blank').focus();
-                    </script>
-                    """
-                    st.components.v1.html(js, height=0)
-                
-                # 구글 맵 링크 직접 제공 (버튼이 작동하지 않는 경우)
-                st.markdown(f"[Google Maps에서 직접 열기]({maps_url})")
-                
-                # 지도에 출발지와 목적지 표시 (간단히)
-                markers = [
-                    {
-                        'lat': user_lat, 
-                        'lng': user_lng, 
-                        'title': '내 위치', 
-                        'color': 'blue', 
-                        'info': '출발 지점',
-                        'category': '내 위치'
-                    },
-                    {
-                        'lat': dest_lat, 
-                        'lng': dest_lng, 
-                        'title': destination["name"], 
-                        'color': 'red', 
-                        'info': f'목적지: {destination["name"]}',
-                        'category': '목적지'
-                    }
-                ]
-                
-                # 간단히 출발지와 목적지만 보여주는 지도
-                show_google_map(
-                    api_key=api_key,
-                    center_lat=(user_lat + dest_lat) / 2,  # 중간 지점
-                    center_lng=(user_lng + dest_lng) / 2,
-                    markers=markers,
-                    zoom=14,
-                    height=400,
-                    language=st.session_state.language
-                )
-                
-                # 다른 교통수단 선택 버튼
-                st.markdown("### 다른 이동 수단")
-                other_modes = {"walking": "도보", "transit": "대중교통", "driving": "자동차"}
-                other_modes.pop(transport_mode)  # 현재 모드 제거
-                
-                cols = st.columns(len(other_modes))
-                for i, (mode, name) in enumerate(other_modes.items()):
-                    with cols[i]:
-                        if st.button(name):
-                            st.session_state.transport_mode = mode
-                            st.rerun()
-                
-                if st.button("내비게이션 종료", use_container_width=True):
-                    st.session_state.navigation_active = False
-                    st.session_state.transport_mode = None
-                    st.rerun()
+                with info_col:
+                    # 경로 정보 표시
+                    st.markdown("### 경로 정보")
+                    st.markdown(f"**{destination['name']}까지**")
+                    st.markdown(f"- 거리: {distance:.0f}m")
+                    
+                    # 교통수단별 예상 시간
+                    if transport_mode == "walking":
+                        speed = 67  # m/min
+                        transport_desc = "도보"
+                    elif transport_mode == "transit":
+                        speed = 200  # m/min
+                        transport_desc = "대중교통"
+                    else:  # driving
+                        speed = 500  # m/min
+                        transport_desc = "자동차"
+                    
+                    time_min = distance / speed
+                    st.markdown(f"- 예상 소요 시간: {time_min:.0f}분")
+                    st.markdown(f"- 이동 수단: {transport_desc}")
+                    
+                    # Google Maps 링크 버튼 (추가된 부분)
+                    st.markdown("### 🗺️ Google Maps 내비게이션")
+                    st.info("아래 버튼을 클릭하면 Google Maps 앱에서 상세 경로를 확인하고 내비게이션을 시작할 수 있습니다.")
+                    
+                    # Google Maps URL 생성
+                    maps_url = (f"https://www.google.com/maps/dir/?api=1"
+                               f"&origin={user_lat},{user_lng}"
+                               f"&destination={dest_lat},{dest_lng}"
+                               f"&travelmode={transport_mode}")
+                    
+                    if st.button("Google Maps 내비게이션 시작", use_container_width=True):
+                        # JavaScript로 새 탭에서 링크 열기
+                        js = f"""
+                        <script>
+                            window.open('{maps_url}', '_blank').focus();
+                        </script>
+                        """
+                        st.components.v1.html(js, height=0)
+                    
+                    # 구글 맵 링크 직접 제공 (버튼이 작동하지 않는 경우)
+                    st.markdown(f"[Google Maps에서 직접 열기]({maps_url})")
+                    
+                    # 기존 턴바이턴 내비게이션 지시사항 유지
+                    st.markdown("### 간략 경로 안내")
+                    directions = [
+                        "현재 위치에서 출발합니다",
+                        f"{distance*0.3:.0f}m 직진 후 오른쪽으로 턴",
+                        f"{distance*0.2:.0f}m 직진 후 왼쪽으로 턴",
+                        f"{distance*0.5:.0f}m 직진 후 목적지 도착"
+                    ]
+                    
+                    for i, direction in enumerate(directions):
+                        st.markdown(f"{i+1}. {direction}")
+                    
+                    # 다른 교통수단 선택 버튼
+                    st.markdown("### 다른 이동 수단")
+                    other_modes = {"walking": "도보", "transit": "대중교통", "driving": "자동차"}
+                    other_modes.pop(transport_mode)  # 현재 모드 제거
+                    
+                    cols = st.columns(len(other_modes))
+                    for i, (mode, name) in enumerate(other_modes.items()):
+                        with cols[i]:
+                            if st.button(name):
+                                st.session_state.transport_mode = mode
+                                st.rerun()
+                    
+                    if st.button("내비게이션 종료", use_container_width=True):
+                        st.session_state.navigation_active = False
+                        st.session_state.transport_mode = None
+                        st.rerun()
                     
 def show_course_page():
     """개선된 관광 코스 추천 페이지"""
