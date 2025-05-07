@@ -378,55 +378,37 @@ def get_location_position():
 #################################################
 
 def load_excel_files():
-    """데이터 폴더에서 지정된 Excel 파일 로드"""
+    """데이터 폴더에서 Excel 파일 로드 - 개선된 버전"""
     data_folder = Path("asset")
     all_markers = []
     
-    # 명시적으로 로드할 파일 목록 (GitHub에 있는 7개 파일)
-    excel_files = [
-        "서울시 자랑스러운 한국음식점 정보 한국어영어중국어 1.xlsx",
-        "서울시 종로구 관광데이터 정보 한국어영어 1.xlsx",
-        "서울시 체육시설 공연행사 정보 한국어영어중국어 1.xlsx",
-        "서울시 문화행사 공공서비스예약 정보한국어영어중국어 1.xlsx",
-        "서울시 외국인전용 관광기념품 판매점 정보한국어영어중국어 1.xlsx",
-        "서울시 종로구 관광데이터 정보 중국어 1.xlsx",
-        "서울시립미술관 전시정보 한국어영어중국어 1.xlsx"
-    ]
-    
-    # 데이터 폴더 확인 및 생성
+    # 파일이 존재하는지 확인
     if not data_folder.exists():
-        st.warning(f"데이터 폴더({data_folder})가 존재하지 않습니다. 폴더를 생성합니다.")
-        data_folder.mkdir(parents=True, exist_ok=True)
-    
-    # 파일 하나라도 존재하는지 확인
-    files_exist = False
-    for file_name in excel_files:
-        if (data_folder / file_name).exists():
-            files_exist = True
-            break
-    
-    if not files_exist:
-        st.error("지정된 Excel 파일이 하나도 존재하지 않습니다. asset 폴더에 파일을 추가해주세요.")
+        st.error(f"데이터 폴더({data_folder})가 존재하지 않습니다.")
         return []
     
-    # 각 파일 처리
-    loaded_files = 0
+    # 파일 목록 확인
+    excel_files = list(data_folder.glob("*.xlsx"))
     
-    for file_name in excel_files:
+    if not excel_files:
+        st.error("Excel 파일을 찾을 수 없습니다. GitHub 저장소의 파일을 확인해주세요.")
+        st.info("확인할 경로: asset/*.xlsx")
+        return []
+    
+    # 찾은 파일 목록 표시
+    st.success(f"{len(excel_files)}개의 Excel 파일을 찾았습니다.")
+    for file_path in excel_files:
+        st.info(f"파일 발견: {file_path.name}")
+    
+    # 언어 설정
+    language = st.session_state.language if 'language' in st.session_state else "한국어"
+    
+    # 각 파일 처리
+    for file_path in excel_files:
         try:
-            file_path = data_folder / file_name
-            
-            # 파일이 존재하지 않으면 건너뛰기
-            if not file_path.exists():
-                st.warning(f"파일을 찾을 수 없습니다: {file_name}")
-                continue
-            
-            # 디버깅 정보 출력
-            st.info(f"파일 로드 중: {file_name}")
-            
             # 파일 카테고리 결정
             file_category = "기타"
-            file_name_lower = file_name.lower()
+            file_name_lower = file_path.name.lower()
             
             for category, keywords in FILE_CATEGORIES.items():
                 if any(keyword.lower() in file_name_lower for keyword in keywords):
@@ -434,187 +416,199 @@ def load_excel_files():
                     break
             
             # 파일 로드
+            st.info(f"'{file_path.name}' 파일을 '{file_category}' 카테고리로 로드 중...")
             df = pd.read_excel(file_path, engine='openpyxl')
             
+            if df.empty:
+                st.warning(f"'{file_path.name}' 파일에 데이터가 없습니다.")
+                continue
+            
             # 데이터프레임 기본 정보 출력
-            st.info(f"파일 '{file_name}' 열 정보: {list(df.columns)}")
-            st.info(f"파일 '{file_name}' 데이터 행 수: {len(df)}")
+            st.success(f"'{file_path.name}' 파일 로드 완료: {len(df)}행, {len(df.columns)}열")
             
             # 데이터 전처리 및 마커 변환
             markers = process_dataframe(df, file_category, language)
             
             if markers:
                 all_markers.extend(markers)
-                st.success(f"{file_name}: {len(markers)}개 마커 로드 완료")
-                loaded_files += 1
+                st.success(f"'{file_path.name}'에서 {len(markers)}개 마커 추출 성공")
             else:
-                st.warning(f"{file_name}: 유효한 마커를 추출할 수 없습니다.")
+                st.warning(f"'{file_path.name}'에서 유효한 마커를 추출할 수 없습니다.")
             
         except Exception as e:
-            st.error(f"{file_name} 처리 오류: {str(e)}")
-            # 오류 세부 정보
+            st.error(f"'{file_path.name}' 파일 처리 오류: {str(e)}")
             import traceback
             st.error(traceback.format_exc())
     
-    if loaded_files > 0:
-        st.success(f"{loaded_files}개 파일에서 총 {len(all_markers)}개의 마커를 로드했습니다.")
+    if not all_markers:
+        st.error("모든 파일에서 유효한 마커를 찾을 수 없습니다.")
     else:
-        st.warning("유효한 마커 데이터를 찾을 수 없습니다.")
+        st.success(f"총 {len(all_markers)}개의 마커를 성공적으로 로드했습니다.")
     
     return all_markers
 
 def process_dataframe(df, category, language="한국어"):
-    """데이터프레임을 Google Maps 마커 형식으로 변환"""
+    """데이터프레임을 Google Maps 마커 형식으로 변환 - X, Y 좌표 처리 개선"""
     markers = []
     
-    # 필수 열 확인: X좌표, Y좌표
-    if 'X좌표' not in df.columns or 'Y좌표' not in df.columns:
-        # 중국어 데이터의 경우 열 이름이 다를 수 있음
-        if 'X坐标' in df.columns and 'Y坐标' in df.columns:
-            df['X좌표'] = df['X坐标']
-            df['Y좌표'] = df['Y坐标']
-        else:
-            st.warning(f"'{category}' 데이터에 좌표 열이 없습니다.")
-            # 좌표 열 이름이 다를 수 있으므로 비슷한 열 찾기
-            x_candidates = [col for col in df.columns if '좌표' in col and ('x' in col.lower() or 'X' in col)]
-            y_candidates = [col for col in df.columns if '좌표' in col and ('y' in col.lower() or 'Y' in col)]
-            
-            if x_candidates and y_candidates:
-                st.info(f"대체 좌표 열 사용: {x_candidates[0]}, {y_candidates[0]}")
-                df['X좌표'] = df[x_candidates[0]]
-                df['Y좌표'] = df[y_candidates[0]]
-            else:
-                return []
+    # 1. X, Y 좌표 열 감지 (대소문자 및 다양한 이름 형식 지원)
+    x_candidates = [col for col in df.columns if ('x' in col.lower() or 'X' in col) and '좌표' in col]
+    y_candidates = [col for col in df.columns if ('y' in col.lower() or 'Y' in col) and '좌표' in col]
     
-    # 언어별 열 이름 결정
-    name_col = '명칭(한국어)'
-    name_candidates = []
+    # 중국어 좌표 열 처리
+    if not x_candidates:
+        x_candidates = [col for col in df.columns if 'X坐标' in col or 'x坐标' in col]
+    if not y_candidates:
+        y_candidates = [col for col in df.columns if 'Y坐标' in col or 'y坐标' in col]
     
-    if language == "한국어":
-        name_candidates = ['명칭(한국어)', '명칭', '이름', '시설명', '관광지명', '장소명']
-    elif language == "영어":
-        name_candidates = ['명칭(영어)', 'PLACE', 'NAME', 'TITLE', 'ENGLISH_NAME']
-    elif language == "중국어":
-        name_candidates = ['명칭(중국어)', '名称', '中文名']
+    # 단순 X, Y 열 확인
+    if not x_candidates:
+        x_candidates = [col for col in df.columns if col.upper() == 'X' or col.lower() == 'x']
+    if not y_candidates:
+        y_candidates = [col for col in df.columns if col.upper() == 'Y' or col.lower() == 'y']
     
-    # 후보 열 중 존재하는 첫 번째 열 사용
-    for col in name_candidates:
-        if col in df.columns:
-            name_col = col
-            break
+    # 경도/위도 열 확인
+    if not x_candidates:
+        x_candidates = [col for col in df.columns if '경도' in col or 'longitude' in col.lower() or 'lon' in col.lower()]
+    if not y_candidates:
+        y_candidates = [col for col in df.columns if '위도' in col or 'latitude' in col.lower() or 'lat' in col.lower()]
     
-    # 중국어 종로구 데이터 특별 처리
-    if category == "종로구 관광지" and language == "중국어":
-        if '名称' in df.columns:
-            name_col = '名称'
+    # X, Y 좌표 열 선택
+    x_col = x_candidates[0] if x_candidates else None
+    y_col = y_candidates[0] if y_candidates else None
     
-    # 명칭 열이 없으면 경고
-    if name_col not in df.columns:
-        st.warning(f"'{category}' 데이터에 적절한 명칭 열이 없습니다.")
-        st.info(f"사용 가능한 열: {list(df.columns)}")
-        # 명칭 열 대신 첫 번째 문자열 열 사용
-        string_cols = [col for col in df.columns if df[col].dtype == 'object']
-        if string_cols:
-            name_col = string_cols[0]
-            st.info(f"명칭 열 대체: {name_col}")
-        else:
-            return []
+    # 2. X, Y 좌표 열이 없는 경우 숫자 열에서 자동 감지
+    if not x_col or not y_col:
+        st.warning(f"'{category}' 데이터에서 명시적인 X, Y 좌표 열을 찾을 수 없습니다. 숫자 열에서 자동 감지를 시도합니다.")
+        numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+        
+        if len(numeric_cols) >= 2:
+            # 각 열의 값 범위를 분석하여 위경도 추정
+            for col in numeric_cols:
+                if df[col].dropna().empty:
+                    continue
+                    
+                # 열의 값 통계 확인
+                col_mean = df[col].mean()
+                col_min = df[col].min()
+                col_max = df[col].max()
+                
+                # 경도(X) 범위 확인: 한국 경도는 대략 124-132
+                if 120 <= col_mean <= 140:
+                    x_col = col
+                    st.info(f"X좌표(경도)로 '{col}' 열을 자동 감지했습니다. 범위: {col_min:.2f}~{col_max:.2f}")
+                
+                # 위도(Y) 범위 확인: 한국 위도는 대략 33-43
+                elif 30 <= col_mean <= 45:
+                    y_col = col
+                    st.info(f"Y좌표(위도)로 '{col}' 열을 자동 감지했습니다. 범위: {col_min:.2f}~{col_max:.2f}")
     
-    # 주소 열 결정
-    address_col = None
-    address_candidates = ['주소(한국어)', '주소', '소재지', '도로명주소', '지번주소', 'ADDRESS']
-    if language == "영어":
-        address_candidates = ['주소(영어)'] + address_candidates
-    elif language == "중국어":
-        address_candidates = ['주소(중국어)', '地址'] + address_candidates
+    # 3. 좌표 열을 여전히 못 찾은 경우 마지막 시도: 단순히 마지막 두 개의 숫자 열 사용
+    if not x_col or not y_col:
+        numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
+        if len(numeric_cols) >= 2:
+            x_col = numeric_cols[-2]  # 뒤에서 두 번째 숫자 열
+            y_col = numeric_cols[-1]  # 마지막 숫자 열
+            st.warning(f"좌표 추정: X좌표='{x_col}', Y좌표='{y_col}' (마지막 두 숫자 열)")
     
-    for col in address_candidates:
-        if col in df.columns:
-            address_col = col
-            break
+    # 4. 여전히 좌표 열을 찾지 못한 경우
+    if not x_col or not y_col:
+        st.error(f"'{category}' 데이터에서 X, Y 좌표 열을 찾을 수 없습니다.")
+        st.error(f"사용 가능한 열: {', '.join(df.columns.tolist())}")
+        return []
     
-    # 좌표 데이터 중 null 값 제거
-    df = df.dropna(subset=['X좌표', 'Y좌표'])
+    # 5. 좌표 데이터 전처리
+    st.success(f"좌표 열 감지 성공: X='{x_col}', Y='{y_col}'")
     
-    # 좌표 데이터 변환 (문자열인 경우)
+    # NaN 값 처리
+    df = df.dropna(subset=[x_col, y_col])
+    
+    # 문자열을 숫자로 변환
     try:
-        df['X좌표'] = pd.to_numeric(df['X좌표'], errors='coerce')
-        df['Y좌표'] = pd.to_numeric(df['Y좌표'], errors='coerce')
+        df[x_col] = pd.to_numeric(df[x_col], errors='coerce')
+        df[y_col] = pd.to_numeric(df[y_col], errors='coerce')
+        df = df.dropna(subset=[x_col, y_col])  # 변환 후 NaN이 된 값 제거
     except Exception as e:
         st.warning(f"좌표 변환 오류: {str(e)}")
     
-    # null 변환된 값 제거
-    df = df.dropna(subset=['X좌표', 'Y좌표'])
+    # 0 값 제거
+    df = df[(df[x_col] != 0) & (df[y_col] != 0)]
     
-    # 유효한 좌표 범위 체크 (한국의 위/경도 범위 내)
-    valid_coords = (df['X좌표'] >= 124) & (df['X좌표'] <= 132) & (df['Y좌표'] >= 33) & (df['Y좌표'] <= 43)
-    df = df[valid_coords]
+    # 6. 좌표 유효성 검증 및 교정
+    # 한국 영역 좌표 체크 (경도 124-132, 위도 33-43)
+    valid_coords = (df[x_col] >= 124) & (df[x_col] <= 132) & (df[y_col] >= 33) & (df[y_col] <= 43)
     
-    if len(df) == 0:
-        st.warning(f"'{category}' 데이터에 유효한 좌표가 없습니다.")
-        return []
+    # X,Y가 바뀐 경우 체크 (Y가 경도, X가 위도인 경우)
+    swapped_coords = (df[y_col] >= 124) & (df[y_col] <= 132) & (df[x_col] >= 33) & (df[x_col] <= 43)
     
-    # 중요도 점수 계산 (코스 추천에 활용)
-    df['importance_score'] = 1.0  # 기본 점수
-    
-    if '입장료' in df.columns:
-        df.loc[df['입장료'].notna(), 'importance_score'] += 0.5
+    # X,Y가 바뀐 경우 자동 교정
+    if swapped_coords.sum() > valid_coords.sum():
+        st.warning(f"'{category}' 데이터의 X,Y 좌표가 바뀐 것으로 보입니다. 자동으로 교정합니다.")
+        df['temp_x'] = df[x_col].copy()
+        df[x_col] = df[y_col]
+        df[y_col] = df['temp_x']
+        df = df.drop('temp_x', axis=1)
         
-    if '이용시간' in df.columns or '운영시간' in df.columns:
-        time_col = '이용시간' if '이용시간' in df.columns else '운영시간'
-        df.loc[df[time_col].notna(), 'importance_score'] += 0.3
+        # 다시 유효성 검증
+        valid_coords = (df[x_col] >= 124) & (df[x_col] <= 132) & (df[y_col] >= 33) & (df[y_col] <= 43)
+    
+    # 유효한 좌표만 필터링
+    valid_df = df[valid_coords]
+    
+    if valid_df.empty:
+        st.error(f"'{category}' 데이터에 유효한 한국 영역 좌표가 없습니다.")
+        st.info(f"원본 좌표 범위: X({df[x_col].min():.2f}~{df[x_col].max():.2f}), Y({df[y_col].min():.2f}~{df[y_col].max():.2f})")
         
-    if '전화번호' in df.columns or 'TELNO' in df.columns:
-        tel_col = '전화번호' if '전화번호' in df.columns else 'TELNO'
-        df.loc[df[tel_col].notna(), 'importance_score'] += 0.2
+        # 좌표 값 10000으로 나누기 시도 (혹시 UTM 좌표계인 경우)
+        if df[x_col].max() > 1000000 or df[y_col].max() > 1000000:
+            st.warning("좌표값이 매우 큽니다. UTM 좌표계일 수 있어 10000으로 나누어 변환을 시도합니다.")
+            df[x_col] = df[x_col] / 10000
+            df[y_col] = df[y_col] / 10000
+            
+            # 다시 유효성 검증
+            valid_coords = (df[x_col] >= 124) & (df[x_col] <= 132) & (df[y_col] >= 33) & (df[y_col] <= 43)
+            valid_df = df[valid_coords]
+            
+            if not valid_df.empty:
+                st.success(f"좌표 변환 성공! 유효한 좌표 {len(valid_df)}개 발견")
+            else:
+                st.error("좌표 변환 실패! 유효한 한국 영역 좌표를 찾을 수 없습니다.")
+                return []
     
-    # 마커 색상 결정
-    color = CATEGORY_COLORS.get(category, "gray")
+    # 7. 이름 열 결정
+    name_col = get_name_column(df, category, language)
     
-    # 각 행을 마커로 변환
-    processed_markers = 0
-    for _, row in df.iterrows():
+    # 8. 주소 열 결정
+    address_col = get_address_column(df, language)
+    
+    # 9. 각 행을 마커로 변환
+    success_count = 0
+    for idx, row in valid_df.iterrows():
         try:
             # 기본 정보
-            if name_col in row and pd.notna(row[name_col]):
+            if name_col and pd.notna(row.get(name_col)):
                 name = str(row[name_col])
             else:
-                continue  # 이름이 없으면 건너뛰기
+                name = f"{category} #{idx+1}"
                 
-            lat = float(row['Y좌표'])
-            lng = float(row['X좌표'])
+            # 좌표 추출
+            lat = float(row[y_col])  # 위도 (Y좌표)
+            lng = float(row[x_col])  # 경도 (X좌표)
             
-            # 좌표가 너무 이상하면 건너뛰기
+            # 좌표값 유효성 최종 확인
             if not (33 <= lat <= 43 and 124 <= lng <= 132):
-                continue
+                continue  # 유효하지 않은 좌표 건너뛰기
             
             # 주소 정보
             address = ""
             if address_col and address_col in row and pd.notna(row[address_col]):
                 address = row[address_col]
             
-            # 추가 정보 (있는 경우)
-            info = ""
-            if address:
-                info += f"주소: {address}<br>"
+            # 정보창 HTML 구성
+            info = build_info_html(row, name, address, category)
             
-            # 전화번호 (있는 경우)
-            for tel_col in ['전화번호', 'TELNO', '연락처']:
-                if tel_col in row and pd.notna(row[tel_col]):
-                    info += f"전화: {row[tel_col]}<br>"
-                    break
-            
-            # 운영시간 (있는 경우)
-            for time_col in ['이용시간', '운영시간', 'OPENHOUR']:
-                if time_col in row and pd.notna(row[time_col]):
-                    info += f"운영시간: {row[time_col]}<br>"
-                    break
-            
-            # 입장료 (있는 경우)
-            for fee_col in ['입장료', '이용요금', 'FEE']:
-                if fee_col in row and pd.notna(row[fee_col]):
-                    info += f"입장료: {row[fee_col]}<br>"
-                    break
+            # 마커 색상 결정
+            color = CATEGORY_COLORS.get(category, "gray")
             
             # 마커 생성
             marker = {
@@ -624,19 +618,104 @@ def process_dataframe(df, category, language="한국어"):
                 'color': color,
                 'category': category,
                 'info': info,
-                'address': address,
-                'importance': row.get('importance_score', 1.0)  # 중요도 점수 추가
+                'address': address
             }
             markers.append(marker)
-            processed_markers += 1
+            success_count += 1
             
         except Exception as e:
-            print(f"마커 생성 오류: {e}")
+            print(f"마커 생성 오류 (행 #{idx}): {e}")
             continue
     
-    st.info(f"'{category}' 데이터에서 {processed_markers}개의 마커 생성 완료")
+    st.success(f"'{category}' 데이터에서 {success_count}개의 마커를 성공적으로 생성했습니다.")
     return markers
 
+# 이름 열 결정 함수
+def get_name_column(df, category, language):
+    """카테고리와 언어에 따른 이름 열 결정"""
+    name_candidates = []
+    
+    # 언어별 기본 후보
+    if language == "한국어":
+        name_candidates = ['명칭(한국어)', '명칭', '이름', '시설명', '관광지명', '장소명', '상호', '상호명']
+    elif language == "영어":
+        name_candidates = ['명칭(영어)', 'PLACE', 'NAME', 'TITLE', 'ENGLISH_NAME', 'name']
+    elif language == "중국어":
+        name_candidates = ['명칭(중국어)', '名称', '中文名', '名稱']
+    
+    # 카테고리별 특수 처리
+    if category == "종로구 관광지" and language == "중국어":
+        name_candidates = ['名称'] + name_candidates
+    elif category == "한국음식점":
+        if language == "한국어":
+            name_candidates = ['상호명(한글)', '상호명', '업소명'] + name_candidates
+        elif language == "영어":
+            name_candidates = ['상호명(영문)', '영문명'] + name_candidates
+        elif language == "중국어":
+            name_candidates = ['상호명(중문)', '중문명'] + name_candidates
+    
+    # 후보 열 중 존재하는 첫 번째 열 사용
+    for col in name_candidates:
+        if col in df.columns:
+            return col
+    
+    # 명칭 열이 없으면 첫 번째 문자열 열 사용
+    string_cols = [col for col in df.columns if df[col].dtype == 'object']
+    if string_cols:
+        return string_cols[0]
+    
+    return None
+
+# 주소 열 결정 함수
+def get_address_column(df, language):
+    """언어에 따른 주소 열 결정"""
+    address_candidates = []
+    
+    if language == "한국어":
+        address_candidates = ['주소(한국어)', '주소', '소재지', '도로명주소', '지번주소', '위치', 'ADDRESS']
+    elif language == "영어":
+        address_candidates = ['주소(영어)', 'ENGLISH_ADDRESS', 'address', 'location']
+    elif language == "중국어":
+        address_candidates = ['주소(중국어)', '地址', '位置', '中文地址']
+    
+    # 후보 열 중 존재하는 첫 번째 열 사용
+    for col in address_candidates:
+        if col in df.columns:
+            return col
+    
+    return None
+
+# 정보창 HTML 구성 함수
+def build_info_html(row, name, address, category):
+    """마커 정보창 HTML 구성"""
+    info = f"<div style='padding: 10px; max-width: 300px;'>"
+    info += f"<h3 style='margin-top: 0; color: #1976D2;'>{name}</h3>"
+    info += f"<p><strong>분류:</strong> {category}</p>"
+    
+    if address:
+        info += f"<p><strong>주소:</strong> {address}</p>"
+    
+    # 전화번호 정보
+    for tel_col in ['전화번호', 'TELNO', '연락처', '전화', 'TEL', 'CONTACT']:
+        if tel_col in row and pd.notna(row[tel_col]):
+            info += f"<p><strong>전화:</strong> {row[tel_col]}</p>"
+            break
+    
+    # 운영시간 정보
+    for time_col in ['이용시간', '운영시간', 'OPENHOUR', 'HOUR', '영업시간', '개장시간']:
+        if time_col in row and pd.notna(row[time_col]):
+            info += f"<p><strong>운영시간:</strong> {row[time_col]}</p>"
+            break
+    
+    # 입장료 정보
+    for fee_col in ['입장료', '이용요금', 'FEE', '요금', '비용']:
+        if fee_col in row and pd.notna(row[fee_col]):
+            info += f"<p><strong>입장료:</strong> {row[fee_col]}</p>"
+            break
+    
+    info += "</div>"
+    return info
+    
 def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=13, language="ko"):
     """Google Maps HTML 생성"""
     if markers is None:
