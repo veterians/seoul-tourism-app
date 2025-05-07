@@ -713,8 +713,9 @@ def build_info_html(row, name, address, category):
     info += "</div>"
     return info
     
-def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=13, language="ko"):
-    """Google Maps HTML 생성"""
+def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=13, language="ko", 
+                           navigation_mode=False, start_location=None, end_location=None, transport_mode=None):
+    """Google Maps HTML 생성 - 내비게이션 기능 추가"""
     if markers is None:
         markers = []
     
@@ -732,15 +733,7 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
         # 해당 카테고리의 마커가 있는 경우만 표시
         if any(m.get('category') == category for m in markers):
             count = sum(1 for m in markers if m.get('category') == category)
-            legend_html_item = '<div class="legend-item"><img src="https://maps.google.com/mapfiles/ms/icons/'
-            legend_html_item += color 
-            legend_html_item += '-dot.png" alt="'
-            legend_html_item += category 
-            legend_html_item += '"> '
-            legend_html_item += category
-            legend_html_item += ' ('
-            legend_html_item += str(count)
-            legend_html_item += ')</div>'
+            legend_html_item = f'<div class="legend-item"><img src="https://maps.google.com/mapfiles/ms/icons/{color}-dot.png" alt="{category}"> {category} ({count})</div>'
             legend_items.append(legend_html_item)
     
     legend_html = "".join(legend_items)
@@ -754,16 +747,16 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
         category = marker.get('category', '').replace("'", "\\\'").replace('"', '\\\"')
         
         # 마커 아이콘 URL (HTTPS로 변경)
-        icon_url = "https://maps.google.com/mapfiles/ms/icons/" + color + "-dot.png"
+        icon_url = f"https://maps.google.com/mapfiles/ms/icons/{color}-dot.png"
         
         # 정보창 HTML 내용
-        info_content = """
+        info_content = f"""
             <div style="padding: 10px; max-width: 300px;">
-                <h3 style="margin-top: 0; color: #1976D2;">{0}</h3>
-                <p><strong>분류:</strong> {1}</p>
-                <div>{2}</div>
+                <h3 style="margin-top: 0; color: #1976D2;">{title}</h3>
+                <p><strong>분류:</strong> {category}</p>
+                <div>{info}</div>
             </div>
-        """.format(title, category, info).replace("'", "\\\\'").replace("\n", "")
+        """.replace("'", "\\\\'").replace("\n", "")
         
         # 마커 생성 코드
         marker_js_template = """
@@ -817,26 +810,50 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
         
         markers_js += curr_marker_js
     
-    # 필터링 함수
+    # 필터링 함수 개선
     filter_js = """
         function filterMarkers(category) {
+            console.log('필터링:', category); // 디버깅용 로그
+            
+            // 마커 수 카운트
+            var shownCount = 0;
+            
             for (var i = 0; i < markers.length; i++) {
-                if (category === 'all' || markerCategories[i] === category) {
-                    markers[i].setVisible(true);
-                } else {
-                    markers[i].setVisible(false);
-                }
+                var shouldShow = category === 'all' || markerCategories[i] === category;
+                markers[i].setVisible(shouldShow);
+                if (shouldShow) shownCount++;
             }
             
             // 필터 버튼 활성화 상태 업데이트
             document.querySelectorAll('.filter-button').forEach(function(btn) {
                 btn.classList.remove('active');
             });
-            document.getElementById('filter-' + category).classList.add('active');
+            
+            // 카테고리 ID 안전하게 변환 (비ASCII 문자 및 특수문자 제거)
+            var safeCategory = category.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+            var filterButtonId = 'filter-' + (category === 'all' ? 'all' : safeCategory);
+            
+            var filterButton = document.getElementById(filterButtonId);
+            if (filterButton) {
+                filterButton.classList.add('active');
+            } else {
+                // ID를 찾을 수 없으면 'all' 버튼을 활성화
+                document.getElementById('filter-all').classList.add('active');
+                console.warn('필터 버튼을 찾지 못했습니다:', filterButtonId);
+            }
+            
+            console.log('표시된 마커 수:', shownCount); // 디버깅용 로그
+            
+            // 부모 창에 필터링 결과 전달
+            window.parent.postMessage({
+                'type': 'filter_applied',
+                'category': category,
+                'count': shownCount
+            }, '*');
         }
     """
     
-    # 마커 클러스터링 코드 - 새로운 방식으로 수정
+    # 마커 클러스터링 코드
     clustering_js = """
         // 마커 클러스터링 - 새 API 사용
         if (window.markerClusterer && markers.length > 0) {
@@ -851,10 +868,106 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
         }
     """
     
-    # 필터 버튼 HTML 생성
+    # 필터 버튼 HTML 생성 (ID 안전하게 생성)
     filter_buttons = '<button id="filter-all" class="filter-button active" onclick="filterMarkers(\'all\')">전체 보기</button>'
     for cat in categories.keys():
-        filter_buttons += ' <button id="filter-' + cat + '" class="filter-button" onclick="filterMarkers(\'' + cat + '\')">' + cat + '</button>'
+        # 안전한 ID 생성 (비ASCII 문자 및 특수문자 제거)
+        safe_id = cat.replace(' ', '-').replace('/', '-').replace('(', '').replace(')', '')
+        safe_id = ''.join(c for c in safe_id if c.isalnum() or c in '-_').lower()
+        filter_buttons += f' <button id="filter-{safe_id}" class="filter-button" onclick="filterMarkers(\'{cat}\')">{cat}</button>'
+    
+    # 내비게이션 JavaScript 코드
+    directions_js = ""
+    if navigation_mode and start_location and end_location and transport_mode:
+        directions_js = f"""
+        // 내비게이션을 위한 Directions Service 객체 생성
+        var directionsService = new google.maps.DirectionsService();
+        var directionsRenderer = new google.maps.DirectionsRenderer({{
+            map: map,
+            suppressMarkers: false,
+            polylineOptions: {{
+                strokeColor: '#4285F4',
+                strokeWeight: 5
+            }}
+        }});
+        
+        // 내비게이션 요청
+        function calculateAndDisplayRoute() {{
+            var start = {{lat: {start_location['lat']}, lng: {start_location['lng']}}};
+            var end = {{lat: {end_location['lat']}, lng: {end_location['lng']}}};
+            
+            directionsService.route(
+                {{
+                    origin: start,
+                    destination: end,
+                    travelMode: '{transport_mode.upper()}',
+                    optimizeWaypoints: true,
+                    provideRouteAlternatives: true,
+                    avoidHighways: false,
+                    avoidTolls: false
+                }},
+                function(response, status) {{
+                    if (status === 'OK') {{
+                        directionsRenderer.setDirections(response);
+                        
+                        // 경로 정보 추출
+                        var route = response.routes[0];
+                        var leg = route.legs[0];
+                        
+                        // 경로 정보 표시
+                        var directionsPanel = document.getElementById('directions-panel');
+                        if (directionsPanel) {{
+                            directionsPanel.innerHTML = '<div><strong>총 거리:</strong> ' + 
+                                leg.distance.text + ', <strong>소요 시간:</strong> ' + 
+                                leg.duration.text + '</div>';
+                                
+                            // 턴바이턴 방향 안내 추가
+                            for (var i = 0; i < leg.steps.length; i++) {{
+                                var step = leg.steps[i];
+                                var stepDiv = document.createElement('div');
+                                stepDiv.className = 'direction-step';
+                                stepDiv.innerHTML = '<div>' + (i+1) + '. ' + step.instructions + 
+                                    ' (' + step.distance.text + ')</div>';
+                                directionsPanel.appendChild(stepDiv);
+                            }}
+                        }}
+                        
+                        // 부모 창에 경로 정보 전달
+                        window.parent.postMessage({{
+                            'type': 'directions_info',
+                            'distance': leg.distance.text,
+                            'duration': leg.duration.text,
+                            'steps': leg.steps.map(function(step) {{
+                                return {{
+                                    'instructions': step.instructions,
+                                    'distance': step.distance.text,
+                                    'duration': step.duration.text
+                                }};
+                            }})
+                        }}, '*');
+                    }} else {{
+                        console.error('내비게이션 요청 실패: ' + status);
+                        // 오류 메시지를 표시
+                        var directionsPanel = document.getElementById('directions-panel');
+                        if (directionsPanel) {{
+                            directionsPanel.innerHTML = 
+                                '<div style="color:red"><strong>경로를 찾을 수 없습니다.</strong><br>' + 
+                                '오류: ' + status + '<br>' +
+                                '내비게이션 서비스가 활성화되었는지 확인하세요.</div>';
+                        }}
+                        
+                        window.parent.postMessage({{
+                            'type': 'directions_error',
+                            'error': status
+                        }}, '*');
+                    }}
+                }}
+            );
+        }}
+        
+        // 페이지 로드 시 내비게이션 시작
+        window.addEventListener('load', calculateAndDisplayRoute);
+        """
     
     # 전체 HTML 코드 생성
     html = """
@@ -863,6 +976,7 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
     <head>
         <title>서울 관광 지도</title>
         <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
             #map {
                 height: 100%;
@@ -939,6 +1053,30 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
                 height: 40px;
                 cursor: pointer;
             }
+            /* 내비게이션 정보 스타일 */
+            #directions-panel {
+                width: 90%;
+                max-width: 300px;
+                background-color: #fff;
+                padding: 10px;
+                margin-top: 10px;
+                border-radius: 5px;
+                box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+                max-height: 300px;
+                overflow-y: auto;
+                position: absolute;
+                top: 10px;
+                right: 10px;
+                z-index: 5;
+                font-size: 12px;
+            }
+            .direction-step {
+                padding: 8px 0;
+                border-bottom: 1px solid #eee;
+            }
+            .direction-step:last-child {
+                border-bottom: none;
+            }
         </style>
         <!-- 최신 마커 클러스터러 라이브러리 로드 -->
         <script src="https://unpkg.com/@googlemaps/markerclusterer@2.0.9/dist/index.min.js"></script>
@@ -957,6 +1095,9 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
             <div style="font-weight: bold; margin-bottom: 8px;">지도 범례</div>
             """ + legend_html + """
         </div>
+        
+        <!-- 내비게이션 방향 패널 -->
+        """ + ("""<div id="directions-panel"></div>""" if navigation_mode else "") + """
         
         <script>
             // 지도 변수
@@ -1048,6 +1189,9 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
                 // 필터링 함수
                 """ + filter_js + """
                 
+                // 내비게이션 코드
+                """ + directions_js + """
+                
                 // 지도 클릭 이벤트
                 map.addListener('click', function(event) {
                     // 열린 정보창 닫기
@@ -1065,22 +1209,24 @@ def create_google_maps_html(api_key, center_lat, center_lng, markers=None, zoom=
                 });
             }
         </script>
-        <script src="https://maps.googleapis.com/maps/api/js?key=""" + api_key + """&callback=initMap&language=""" + language + """&loading=async" async defer></script>
+        <script src="https://maps.googleapis.com/maps/api/js?key=""" + api_key + """&callback=initMap&language=""" + language + """&libraries=places,directions&loading=async" async defer></script>
     </body>
     </html>
     """
     
     return html
     
-def show_google_map(api_key, center_lat, center_lng, markers=None, zoom=13, height=600, language="한국어"):
-    """Google Maps 컴포넌트 표시 - 개선된 버전"""
+def show_google_map(api_key, center_lat, center_lng, markers=None, zoom=13, height=600, language="한국어", 
+                   navigation_mode=False, start_location=None, end_location=None, transport_mode=None):
+    """Google Maps 컴포넌트 표시 - 내비게이션 기능 추가"""
     # 언어 코드 변환
     lang_code = LANGUAGE_CODES.get(language, "ko")
     
-    # 디버깅 정보
-    st.info(f"지도를 로드합니다... 마커 수: {len(markers) if markers else 0}")
-    
     try:
+        # 디버깅 정보
+        if navigation_mode:
+            st.info(f"내비게이션 모드: {transport_mode}, 출발: ({start_location['lat']:.4f}, {start_location['lng']:.4f}), 도착: ({end_location['lat']:.4f}, {end_location['lng']:.4f})")
+        
         # HTML 생성
         map_html = create_google_maps_html(
             api_key=api_key,
@@ -1088,7 +1234,11 @@ def show_google_map(api_key, center_lat, center_lng, markers=None, zoom=13, heig
             center_lng=center_lng,
             markers=markers,
             zoom=zoom,
-            language=lang_code
+            language=lang_code,
+            navigation_mode=navigation_mode,
+            start_location=start_location,
+            end_location=end_location,
+            transport_mode=transport_mode
         )
         
         # HTML 컴포넌트로 표시
@@ -1503,7 +1653,7 @@ def show_menu_page():
         st.rerun()
 
 def show_map_page():
-    """지도 페이지 표시"""
+    """지도 페이지 표시 - 내비게이션 기능 개선"""
     page_header("서울 관광 장소 지도")
     
     # 뒤로가기 버튼
@@ -1677,7 +1827,7 @@ def show_map_page():
                     """.format(walk_time), unsafe_allow_html=True)
                     
                     if st.button("도보 선택", use_container_width=True):
-                        st.session_state.transport_mode = "walk"
+                        st.session_state.transport_mode = "walking"
                         st.rerun()
                 
                 with col2:
@@ -1703,7 +1853,7 @@ def show_map_page():
                     """.format(car_time), unsafe_allow_html=True)
                     
                     if st.button("자동차 선택", use_container_width=True):
-                        st.session_state.transport_mode = "car"
+                        st.session_state.transport_mode = "driving"
                         st.rerun()
                 
                 if st.button("← 지도로 돌아가기", use_container_width=True):
@@ -1714,23 +1864,17 @@ def show_map_page():
                 # 선택된 교통수단에 따른 내비게이션 표시
                 transport_mode = st.session_state.transport_mode
                 transport_icons = {
-                    "walk": "🚶",
+                    "walking": "🚶",
                     "transit": "🚍",
-                    "car": "🚗"
+                    "driving": "🚗"
                 }
                 transport_names = {
-                    "walk": "도보",
-                    "transit": "대중교통",
-                    "car": "자동차"
+                    "walking": "도보",
+                    "transit": "대중교통", 
+                    "driving": "자동차"
                 }
                 
                 st.markdown(f"### {transport_icons[transport_mode]} {transport_names[transport_mode]} 경로")
-                
-                # 경로 데이터 준비 (두 지점 연결)
-                route = [
-                    {"lat": user_lat, "lng": user_lng},  # 출발지
-                    {"lat": dest_lat, "lng": dest_lng}   # 목적지
-                ]
                 
                 # 마커 데이터 준비
                 markers = [
@@ -1756,7 +1900,7 @@ def show_map_page():
                 nav_col, info_col = st.columns([2, 1])
                 
                 with nav_col:
-                    # 지도에 출발지-목적지 경로 표시
+                    # 내비게이션 모드일 때 지도 표시 부분 - 수정된 부분
                     show_google_map(
                         api_key=api_key,
                         center_lat=(user_lat + dest_lat) / 2,  # 중간 지점
@@ -1764,7 +1908,11 @@ def show_map_page():
                         markers=markers,
                         zoom=14,
                         height=600,
-                        language=st.session_state.language
+                        language=st.session_state.language,
+                        navigation_mode=True,
+                        start_location={"lat": user_lat, "lng": user_lng},
+                        end_location={"lat": dest_lat, "lng": dest_lng},
+                        transport_mode=transport_mode
                     )
                 
                 with info_col:
@@ -1774,13 +1922,13 @@ def show_map_page():
                     st.markdown(f"- 거리: {distance:.0f}m")
                     
                     # 교통수단별 예상 시간
-                    if transport_mode == "walk":
+                    if transport_mode == "walking":
                         speed = 67  # m/min
                         transport_desc = "도보"
                     elif transport_mode == "transit":
                         speed = 200  # m/min
                         transport_desc = "대중교통"
-                    else:  # car
+                    else:  # driving
                         speed = 500  # m/min
                         transport_desc = "자동차"
                     
@@ -1802,7 +1950,7 @@ def show_map_page():
                     
                     # 다른 교통수단 선택 버튼
                     st.markdown("### 다른 이동 수단")
-                    other_modes = {"walk": "도보", "transit": "대중교통", "car": "자동차"}
+                    other_modes = {"walking": "도보", "transit": "대중교통", "driving": "자동차"}
                     other_modes.pop(transport_mode)  # 현재 모드 제거
                     
                     cols = st.columns(len(other_modes))
