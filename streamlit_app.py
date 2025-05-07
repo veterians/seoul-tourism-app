@@ -377,7 +377,7 @@ def get_location_position():
 # 데이터 로드 함수
 #################################################
 
-def load_excel_files():
+def load_excel_files(language="한국어"):
     """데이터 폴더에서 Excel 파일 로드 - 개선된 버전"""
     data_folder = Path("asset")
     all_markers = []
@@ -399,9 +399,6 @@ def load_excel_files():
     st.success(f"{len(excel_files)}개의 Excel 파일을 찾았습니다.")
     for file_path in excel_files:
         st.info(f"파일 발견: {file_path.name}")
-    
-    # 언어 설정
-    language = st.session_state.language if 'language' in st.session_state else "한국어"
     
     # 각 파일 처리
     for file_path in excel_files:
