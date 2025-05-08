@@ -219,6 +219,34 @@ EXCEL_FILES = [
     "서울시립미술관 전시정보 한국어영어중국어 1.xlsx"
 ]
 
+# 혼잡도 등급/텍스트 언어별 처리
+CONGESTION_TEXTS = {
+    "한국어": {
+        "여유": "여유",
+        "보통": "보통",
+        "붐빔": "붐빔",
+        "정보없음": "정보없음",
+        "info_pattern": "혼잡도: <span style='color:{color};font-weight:bold;'>{level}</span><br>{message}",
+        "search_placeholder": "장소명을 입력하세요 (예: 경복궁, 명동관광특구...)"
+    },
+    "영어": {
+        "여유": "Comfortable",
+        "보통": "Moderate",
+        "붐빔": "Crowded",
+        "정보없음": "Unknown",
+        "info_pattern": "Congestion: <span style='color:{color};font-weight:bold;'>{level}</span><br>{message}",
+        "search_placeholder": "Enter place (ex: Gyeongbokgung, Myeongdong Special Tourist Zone...)"
+    },
+    "중국어": {
+        "여유": "宽裕",
+        "보통": "一般",
+        "붐빔": "拥挤",
+        "정보없음": "未知",
+        "info_pattern": "拥挤程度: <span style='color:{color};font-weight:bold;'>{level}</span><br>{message}",
+        "search_placeholder": "请输入地点（如：景福宫、明洞旅游特区...）"
+    }
+}
+
 #################################################
 # 유틸리티 함수
 #################################################
@@ -2624,65 +2652,25 @@ def show_history_page():
             st.rerun()
 
 def show_congestion_page():
-    st.title("📊 서울 116곳 실시간 혼잡도 Google 지도")
+    st.title("📊 서울시 실시간 혼잡도 지도")
 
     if st.button("← 메뉴로 돌아가기"):
         st.session_state.current_page = "menu"
         st.rerun()
 
-    st.info("지도의 마커는 서울시 혼잡도 API 지원 116개 장소만 표시/업데이트 됩니다.")
+    st.info("아래 지도는 서울특별시에서 공식으로 제공하는 실시간 도시 혼잡도 지도입니다.")
 
-    # 1. markers 리스트 생성(좌표→혼잡도 정보→색상/팝업 내용)
-    markers = []
-    for spot, (lat, lng) in HOTSPOT_LATLON.items():
-        cong = get_congestion_for_location(spot)
-        if cong and cong.get("혼잡도등급"):
-            color = color_by_congestion(cong["혼잡도등급"])
-            info = (
-                f"<b>{spot}</b><br>"
-                f"혼잡도: <span style='color:{color};font-weight:bold;'>{cong['혼잡도등급']}</span><br>"
-                f"{cong['혼잡도메시지']}<br>"
-                f"<small>실인구: {cong['실시간인구_최소']}~{cong['실시간인구_최대']}<br>({cong['업데이트시각']})</small>"
-            )
-        else:
-            color = "gray"
-            info = f"<b>{spot}</b><br>혼잡도 정보 없음"
-        markers.append({
-            "lat": lat,
-            "lng": lng,
-            "title": spot,
-            "color": color,
-            "info": info
-        })
-
-    # 2. Google Map 표시
-    api_key = (
-        st.session_state.google_maps_api_key
-        if "google_maps_api_key" in st.session_state
-        else "YOUR_GOOGLE_MAPS_API_KEY"
+    # 서울시 공식 지도 iframe으로 바로 embed
+    st.components.v1.iframe(
+        "https://data.seoul.go.kr/SeoulRtd/map",
+        width=1100,    # 필요시 조절
+        height=700,
+        scrolling=True
     )
-    show_congestion_google_map(api_key, markers)
 
-    st.markdown("---")
-    st.subheader("🔎 혼잡도 실시간 검색 (116곳 대상)")
-    search_area = st.text_input("장소명을 정확히 입력(예: 명동관광특구, 경복궁...)")
-    if st.button("혼잡도 조회"):
-        if search_area not in HOTSPOT_LIST:
-            st.warning("해당 장소는 혼잡도 API 지원 대상이 아닙니다.")
-        else:
-            cong = get_congestion_for_location(search_area)
-            if cong and cong.get("혼잡도등급"):
-                color = color_by_congestion(cong["혼잡도등급"])
-                st.markdown(f"""
-                <div style='background:{color}20;padding:16px;border-radius:10px;margin:12px 0;'>
-                    <b>{cong["장소명"]}</b>
-                    <span style='background:{color};color:#fff;border-radius:6px;padding:5px 14px;margin-left:13px;'>{cong["혼잡도등급"]}</span>
-                    <div style='font-size:98%;margin-top:7px'>{cong["혼잡도메시지"]}</div>
-                    <div style='font-size:82%;color:#555'>실시간 인구 {cong["실시간인구_최소"]}~{cong["실시간인구_최대"]} | 업데이트 {cong["업데이트시각"]}</div>
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.info("혼잡도 정보를 찾을 수 없습니다.")
+    st.markdown(
+        "[👉 서울시 공식 사이트 새 탭에서 전체 화면으로 보기](https://data.seoul.go.kr/SeoulRtd/map)"
+    )
 
 
 #################################################
