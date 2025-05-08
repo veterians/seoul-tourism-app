@@ -1900,12 +1900,13 @@ def show_menu_page():
         # 추가: 혼잡도 기능 버튼 2025.05.08
         st.markdown("""
         <div class="card">
-            <h3>📊 장소 혼잡도 현황</h3>
+            <h3>📊 서울 장소 혼잡도 지도</h3>
             <p>서울 주요 관광지·지하철역의 실시간 혼잡도를 확인하세요.</p>
         </div>
         """, unsafe_allow_html=True)
-        if st.button("혼잡도 보기", key="congestion_button", use_container_width=True):
-            change_page("congestion")
+
+        if st.button("🗺️ 서울 장소 혼잡도 지도", use_container_width=True, key="congestion_map_button"):
+            st.session_state.current_page = "congestion"
             st.rerun()
             
     # 로그아웃 버튼
