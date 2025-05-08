@@ -1518,8 +1518,7 @@ def display_visits(visits):
                         st.session_state.rating_place = visit['place_name']
                         st.session_state.rating_index = i
 
-def show_congestion_google_map(api_key, markers, center_lat=37.5665, center_lng=126.9780, zoom=11, height=600, language="ko"):
-    # 혼잡도 마커 전용 google map HTML
+def show_congestion_google_map(api_key, markers, center_lat=37.5665, center_lng=126.9780, zoom=11, height=400, language="ko"):
     markers_js = ""
     for i, m in enumerate(markers):
         color = m.get('color', "gray")
