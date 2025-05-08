@@ -2625,42 +2625,54 @@ def show_history_page():
             st.rerun()
 
 def show_congestion_page():
-    st.title("📊 서울 혼잡도 핫스팟 지도 (Google Map)")
+    st.title("📊 서울 116곳 실시간 혼잡도 Google 지도")
 
     if st.button("← 메뉴로 돌아가기"):
         st.session_state.current_page = "menu"
         st.rerun()
-    st.info("※ 지도에는 서울시 혼잡도 API가 지원하는 116곳만 표시됩니다.")
 
+    st.info("지도의 마커는 서울시 혼잡도 API 지원 116개 장소만 표시/업데이트 됩니다.")
+
+    # 1. markers 리스트 생성(좌표→혼잡도 정보→색상/팝업 내용)
     markers = []
-    for spot in HOTSPOT_LIST:
-        lat, lng = HOTSPOT_LATLON[spot]
+    for spot, (lat, lng) in HOTSPOT_LATLON.items():
         cong = get_congestion_for_location(spot)
-        if cong and cong["혼잡도등급"]:
+        if cong and cong.get("혼잡도등급"):
             color = color_by_congestion(cong["혼잡도등급"])
-            info = f"""
-                <b>{spot}</b><br>
-                혼잡도: <span style='color:{color};font-weight:bold;'>{cong['혼잡도등급']}</span><br>
-                {cong['혼잡도메시지']}<br>
-                <small>실인구: {cong['실시간인구_최소']}~{cong['실시간인구_최대']}<br>
-                ({cong['업데이트시각']})</small>
-            """
-            markers.append(dict(lat=lat, lng=lng, title=spot, color=color, info=info))
+            info = (
+                f"<b>{spot}</b><br>"
+                f"혼잡도: <span style='color:{color};font-weight:bold;'>{cong['혼잡도등급']}</span><br>"
+                f"{cong['혼잡도메시지']}<br>"
+                f"<small>실인구: {cong['실시간인구_최소']}~{cong['실시간인구_최대']}<br>({cong['업데이트시각']})</small>"
+            )
         else:
-            markers.append(dict(lat=lat, lng=lng, title=spot, color="gray", info=f"<b>{spot}</b><br>혼잡도 정보없음"))
+            color = "gray"
+            info = f"<b>{spot}</b><br>혼잡도 정보 없음"
+        markers.append({
+            "lat": lat,
+            "lng": lng,
+            "title": spot,
+            "color": color,
+            "info": info
+        })
 
-    api_key = st.session_state.google_maps_api_key if "google_maps_api_key" in st.session_state else "YOUR_GOOGLE_MAPS_API_KEY"
+    # 2. Google Map 표시
+    api_key = (
+        st.session_state.google_maps_api_key
+        if "google_maps_api_key" in st.session_state
+        else "YOUR_GOOGLE_MAPS_API_KEY"
+    )
     show_congestion_google_map(api_key, markers)
 
     st.markdown("---")
-    st.subheader("🔎 혼잡도 실시간 검색")
-    search_area = st.text_input("장소명을 정확히 입력 (예: 명동관광특구, 경복궁, 고척돔, 강남역 등)")
+    st.subheader("🔎 혼잡도 실시간 검색 (116곳 대상)")
+    search_area = st.text_input("장소명을 정확히 입력(예: 명동관광특구, 경복궁...)")
     if st.button("혼잡도 조회"):
         if search_area not in HOTSPOT_LIST:
             st.warning("해당 장소는 혼잡도 API 지원 대상이 아닙니다.")
         else:
             cong = get_congestion_for_location(search_area)
-            if cong and cong["혼잡도등급"]:
+            if cong and cong.get("혼잡도등급"):
                 color = color_by_congestion(cong["혼잡도등급"])
                 st.markdown(f"""
                 <div style='background:{color}20;padding:16px;border-radius:10px;margin:12px 0;'>
