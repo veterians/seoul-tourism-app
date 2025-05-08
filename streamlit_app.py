@@ -62,6 +62,127 @@ PLACE_XP = {
     "63빌딩": 45
 }
 
+# 혼잡도 핫스팟명+좌표 (116곳)
+HOTSPOT_LATLON = {
+    "경복궁": (37.579617, 126.977041),
+    "광화문·덕수궁": (37.572573, 126.976987),
+    "보신각": (37.570077, 126.982673),
+    "서울암사동유적": (37.550882, 127.127735),
+    "창덕궁·종묘": (37.579429, 126.991053),
+    "강남MICE 관광특구": (37.513340, 127.059306),
+    "동대문관광특구": (37.564348, 127.005069),
+    "명동관광특구": (37.563757, 126.985302),
+    "이태원관광특구": (37.534707, 126.994317),
+    "잠실관광특구": (37.511666, 127.098134),
+    "종로·청계관광특구": (37.570199, 126.983018),
+    "홍대관광특구": (37.557192, 126.924337),
+    "강서한강공원": (37.561965, 126.836857),
+    "고척돔": (37.496017, 126.867321),
+    "광나루한강공원": (37.545913, 127.117415),
+    "광화문광장": (37.572336, 126.976969),
+    "국립중앙박물관 용산가족공원": (37.523984, 126.980355),
+    "난지한강공원": (37.569865, 126.871688),
+    "남산공원": (37.550434, 126.990416),
+    "노들섬": (37.514552, 126.953327),
+    "뚝섬한강공원": (37.531158, 127.066485),
+    "망원한강공원": (37.555507, 126.902641),
+    "반포한강공원": (37.513085, 126.995431),
+    "북서울꿈의숲": (37.620004, 127.041821),
+    "불광천": (37.607581, 126.926065),
+    "서리풀공원·몽마르뜨공원": (37.492168, 127.012193),
+    "서울광장": (37.566330, 126.977937),
+    "서울대공원": (37.436317, 127.009216),
+    "서울숲공원": (37.544323, 127.037433),
+    "아차산": (37.561039, 127.103115),
+    "양화한강공원": (37.546173, 126.902190),
+    "어린이대공원": (37.548695, 127.074953),
+    "여의도한강공원": (37.527705, 126.932400),
+    "월드컵공원": (37.569310, 126.899409),
+    "응봉산": (37.549999, 127.034542),
+    "이촌한강공원": (37.517651, 126.963944),
+    "잠실종합운동장": (37.514053, 127.073486),
+    "잠실한강공원": (37.520225, 127.085745),
+    "잠원한강공원": (37.517809, 127.011347),
+    "청계산": (37.417687, 127.072032),
+    "청와대": (37.586612, 126.974852),
+    "4·19 카페거리": (37.648982, 127.012086),
+    "가락시장": (37.493332, 127.118036),
+    "가로수길": (37.520743, 127.022336),
+    "광장(전통)시장": (37.570222, 126.999328),
+    "김포공항": (37.561350, 126.801890),
+    "낙산공원·이화마을": (37.579354, 127.006071),
+    "남대문시장": (37.559801, 126.978458),
+    "노량진": (37.514208, 126.942669),
+    "덕수궁길·정동길": (37.566734, 126.973562),
+    "방배역먹자골목": (37.482283, 126.997650),
+    "북창동먹자골목": (37.563759, 126.983980),
+    "북촌한옥마을": (37.582604, 126.983998),
+    "서촌": (37.579262, 126.972455),
+    "성수카페거리": (37.544049, 127.054898),
+    "수유리먹자골목": (37.634098, 127.018264),
+    "쌍문동맛집거리": (37.648848, 127.016545),
+    "압구정로데오거리": (37.527255, 127.028158),
+    "여의도": (37.523336, 126.924131),
+    "연남동": (37.564736, 126.924466),
+    "영등포타임스퀘어": (37.517268, 126.903895),
+    "외대앞": (37.595620, 127.063544),
+    "용리단길": (37.536914, 126.963615),
+    "이태원앤틱가구거리": (37.536182, 126.994591),
+    "익선동": (37.574084, 126.989596),
+    "인사동": (37.574991, 126.985800),
+    "창동신경제중심지": (37.653086, 127.047372),
+    "청담동명품거리": (37.523159, 127.051674),
+    "청량리제기동일대전통시장": (37.580841, 127.046953),
+    "해방촌·경리단길": (37.542929, 126.987559),
+    "DDP(동대문디자인플라자)": (37.566826, 127.009957),
+    "DMC(디지털미디어시티)": (37.577608, 126.890993),
+    "가산디지털단지역": (37.481233, 126.882066),
+    "구로디지털단지역": (37.485301, 126.900784),
+    "서울식물원·마곡나루역": (37.568960, 126.834740),
+    "오목교역·목동운동장": (37.524887, 126.875708),
+    "총신대입구(이수)역": (37.486991, 126.982823),
+    "홍대입구역(2호선)": (37.556714, 126.923467),
+    "강남역": (37.497175, 127.027926),
+    "건대입구역": (37.540408, 127.069231),
+    "고덕역": (37.555134, 127.154220),
+    "고속터미널역": (37.504930, 127.004948),
+    "교대역": (37.492426, 127.014566),
+    "구로역": (37.503044, 126.881476),
+    "군자역": (37.557466, 127.079327),
+    "남구로역": (37.492426, 126.889494),
+    "대림역": (37.492522, 126.895300),
+    "동대문역": (37.571682, 127.009224),
+    "뚝섬역": (37.547199, 127.047278),
+    "미아사거리역": (37.613217, 127.030040),
+    "발산역": (37.558514, 126.837125),
+    "북한산우이역": (37.665860, 127.012830),
+    "사당역": (37.476536, 126.981631),
+    "삼각지역": (37.534488, 126.973913),
+    "서울대입구역": (37.481247, 126.952739),
+    "서울역": (37.555134, 126.972559),
+    "선릉역": (37.504297, 127.049713),
+    "성신여대입구역": (37.592624, 127.016403),
+    "수유역": (37.637132, 127.024612),
+    "신논현역·논현역": (37.504146, 127.025278),
+    "신도림역": (37.508850, 126.891136),
+    "신림역": (37.484216, 126.929345),
+    "신촌·이대역": (37.556876, 126.941162),
+    "양재역": (37.483082, 127.035398),
+    "역삼역": (37.500690, 127.036887),
+    "연신내역": (37.619061, 126.921821),
+    "왕십리역": (37.561534, 127.037298),
+    "용산역": (37.529905, 126.964904),
+    "이태원역": (37.534488, 126.994377),
+    "장지역": (37.478119, 127.126728),
+    "장한평역": (37.561096, 127.064694),
+    "천호역": (37.538397, 127.123572),
+    "충정로역": (37.559973, 126.963360),
+    "합정역": (37.549377, 126.913068),
+    "혜화역": (37.582336, 127.001844),
+    "회기역": (37.589702, 127.057277),
+}
+HOTSPOT_LIST = list(HOTSPOT_LATLON.keys())
+
 # 언어 코드 매핑
 LANGUAGE_CODES = {
     "한국어": "ko",
@@ -373,6 +494,15 @@ def get_location_position():
         
     return DEFAULT_LOCATION  # 기본 위치 (서울시청)
 
+def color_by_congestion(lvl):
+    if lvl == "붐빔":
+        return "red"
+    elif lvl == "보통":
+        return "orange"
+    elif lvl == "여유":
+        return "green"
+    return "gray"
+
 #################################################
 # 데이터 로드 함수
 #################################################
@@ -681,6 +811,67 @@ def get_address_column(df, language):
             return col
     
     return None
+
+import requests
+
+def get_congestion_for_location(area_nm, key="616d73735a6c6b613338414d616d78"):
+    endpoint = f"https://openapi.seoul.go.kr:8088/{key}/json/citydata_ppltn_eng/1/1/{area_nm}"
+    try:
+        resp = requests.get(endpoint, timeout=2)
+        data = resp.json()
+        section = data.get("citydata_ppltn_eng", {})
+        if "RESULT" in section and section["RESULT"]["CODE"] != "INFO-000":
+            return None
+        row = section.get("row", [{}])[0]
+        return {
+            "장소명": row.get("AREA_NM"),
+            "혼잡도등급": row.get("AREA_CONGEST_LVL"),
+            "혼잡도메시지": row.get("AREA_CONGEST_MSG"),
+            "실시간인구_최소": row.get("AREA_PPLTN_MIN"),
+            "실시간인구_최대": row.get("AREA_PPLTN_MAX"),
+            "업데이트시각": row.get("PPLTN_TIME"),
+        }
+    except Exception as e:
+        return None
+
+def create_google_maps_html(api_key, markers, center_lat=37.5665, center_lng=126.9780, zoom=11, height=600, language="ko"):
+    markers_js = ""
+    for i, m in enumerate(markers):
+        color = m.get('color', "gray")
+        info = m.get('info', m['title'])
+        icon_url = f"https://maps.google.com/mapfiles/ms/icons/{color}-dot.png"
+        title = m['title'].replace("'", "\\'").replace('"', '\\"')
+        markers_js += f"""
+            var marker{i} = new google.maps.Marker({{
+                position: {{ lat: {m['lat']}, lng: {m['lng']} }},
+                map: map,
+                title: '{title}',
+                icon: '{icon_url}',
+            }});
+            var infowindow{i} = new google.maps.InfoWindow({{
+                content: `{info}`
+            }});
+            marker{i}.addListener('click', function() {{
+                infowindow{i}.open(map, marker{i});
+            }});
+        """
+    html = f"""
+    <html><head>
+    <meta name="viewport" content="initial-scale=1.0">
+    <style>html,body,#map{{height:100%;margin:0;padding:0;}}</style>
+    </head><body>
+    <div id="map" style="width:100%;height:{height}px;"></div>
+    <script src="https://maps.googleapis.com/maps/api/js?key={api_key}&language={language}"></script>
+    <script>
+      var map = new google.maps.Map(document.getElementById('map'), {{
+        center: {{lat: {center_lat}, lng: {center_lng}}},
+        zoom: {zoom}
+      }});
+      {markers_js}
+    </script>
+    </body></html>
+    """
+    return html
 
 # 정보창 HTML 구성 함수
 def build_info_html(row, name, address, category):
@@ -1327,6 +1518,46 @@ def display_visits(visits):
                         st.session_state.rating_place = visit['place_name']
                         st.session_state.rating_index = i
 
+def show_congestion_google_map(api_key, markers, center_lat=37.5665, center_lng=126.9780, zoom=11, height=600, language="ko"):
+    # 혼잡도 마커 전용 google map HTML
+    markers_js = ""
+    for i, m in enumerate(markers):
+        color = m.get('color', "gray")
+        info = m.get('info', m['title'])
+        icon_url = f"https://maps.google.com/mapfiles/ms/icons/{color}-dot.png"
+        title = m['title'].replace("'", "\\'").replace('"', '\\"')
+        markers_js += f"""
+            var marker{i} = new google.maps.Marker({{
+                position: {{ lat: {m['lat']}, lng: {m['lng']} }},
+                map: map,
+                title: '{title}',
+                icon: '{icon_url}',
+            }});
+            var infowindow{i} = new google.maps.InfoWindow({{
+                content: `{info}`
+            }});
+            marker{i}.addListener('click', function() {{
+                infowindow{i}.open(map, marker{i});
+            }});
+        """
+    html = f"""
+    <html><head>
+    <meta name="viewport" content="initial-scale=1.0">
+    <style>html,body,#map{{height:100%;margin:0;padding:0;}}</style>
+    </head><body>
+    <div id="map" style="width:100%;height:{height}px;"></div>
+    <script src="https://maps.googleapis.com/maps/api/js?key={api_key}&language={language}"></script>
+    <script>
+      var map = new google.maps.Map(document.getElementById('map'), {{
+        center: {{lat: {center_lat}, lng: {center_lng}}},
+        zoom: {zoom}
+      }});
+      {markers_js}
+    </script>
+    </body></html>
+    """
+    st.components.v1.html(html, height=height, scrolling=False)
+
 #################################################
 # 개선된 관광 코스 추천 함수
 #################################################
@@ -1663,6 +1894,18 @@ def show_menu_page():
         
         if st.button("관광 이력 보기", key="history_button", use_container_width=True):
             change_page("history")
+            st.rerun()
+            
+    with col2:
+        # 추가: 혼잡도 기능 버튼 2025.05.08
+        st.markdown("""
+        <div class="card">
+            <h3>📊 장소 혼잡도 현황</h3>
+            <p>서울 주요 관광지·지하철역의 실시간 혼잡도를 확인하세요.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        if st.button("혼잡도 보기", key="congestion_button", use_container_width=True):
+            change_page("congestion")
             st.rerun()
             
     # 로그아웃 버튼
@@ -2380,6 +2623,56 @@ def show_history_page():
             st.success(f"예시 데이터가 생성되었습니다! +{total_xp} XP 획득!")
             st.rerun()
 
+def show_congestion_page():
+    st.title("📊 서울 혼잡도 핫스팟 지도 (Google Map)")
+
+    if st.button("← 메뉴로 돌아가기"):
+        st.session_state.current_page = "menu"
+        st.rerun()
+    st.info("※ 지도에는 서울시 혼잡도 API가 지원하는 116곳만 표시됩니다.")
+
+    markers = []
+    for spot in HOTSPOT_LIST:
+        lat, lng = HOTSPOT_LATLON[spot]
+        cong = get_congestion_for_location(spot)
+        if cong and cong["혼잡도등급"]:
+            color = color_by_congestion(cong["혼잡도등급"])
+            info = f"""
+                <b>{spot}</b><br>
+                혼잡도: <span style='color:{color};font-weight:bold;'>{cong['혼잡도등급']}</span><br>
+                {cong['혼잡도메시지']}<br>
+                <small>실인구: {cong['실시간인구_최소']}~{cong['실시간인구_최대']}<br>
+                ({cong['업데이트시각']})</small>
+            """
+            markers.append(dict(lat=lat, lng=lng, title=spot, color=color, info=info))
+        else:
+            markers.append(dict(lat=lat, lng=lng, title=spot, color="gray", info=f"<b>{spot}</b><br>혼잡도 정보없음"))
+
+    api_key = st.session_state.google_maps_api_key if "google_maps_api_key" in st.session_state else "YOUR_GOOGLE_MAPS_API_KEY"
+    show_congestion_google_map(api_key, markers)
+
+    st.markdown("---")
+    st.subheader("🔎 혼잡도 실시간 검색")
+    search_area = st.text_input("장소명을 정확히 입력 (예: 명동관광특구, 경복궁, 고척돔, 강남역 등)")
+    if st.button("혼잡도 조회"):
+        if search_area not in HOTSPOT_LIST:
+            st.warning("해당 장소는 혼잡도 API 지원 대상이 아닙니다.")
+        else:
+            cong = get_congestion_for_location(search_area)
+            if cong and cong["혼잡도등급"]:
+                color = color_by_congestion(cong["혼잡도등급"])
+                st.markdown(f"""
+                <div style='background:{color}20;padding:16px;border-radius:10px;margin:12px 0;'>
+                    <b>{cong["장소명"]}</b>
+                    <span style='background:{color};color:#fff;border-radius:6px;padding:5px 14px;margin-left:13px;'>{cong["혼잡도등급"]}</span>
+                    <div style='font-size:98%;margin-top:7px'>{cong["혼잡도메시지"]}</div>
+                    <div style='font-size:82%;color:#555'>실시간 인구 {cong["실시간인구_최소"]}~{cong["실시간인구_최대"]} | 업데이트 {cong["업데이트시각"]}</div>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.info("혼잡도 정보를 찾을 수 없습니다.")
+
+
 #################################################
 # 메인 앱 로직
 #################################################
@@ -2417,6 +2710,8 @@ def main():
         show_course_page()
     elif st.session_state.current_page == "history":
         show_history_page()
+    elif st.session_state.current_page == "congestion":
+        show_congestion_page()
     else:
         show_menu_page()  # 기본값
 
